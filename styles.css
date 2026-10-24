@@ -282,7 +282,8 @@ h1.title::after { content: ""; display: block; width: 64px; height: 1px; margin:
   .fog-2, .fog-3, .fog-5, .fog-6, .firefly { display: none; }
   .fog-4 { mix-blend-mode: normal; filter: blur(14px); }
   .fog-1 { mix-blend-mode: normal; filter: blur(14px); }
-  .mist-wrap { align-items: flex-start; }
+  #screen-test .mist-wrap,
+  #screen-story .mist-wrap { align-items: flex-start; }
   #screen-tie.active { align-items: flex-start; }
   .auth-card { padding: 28px 18px; border-radius: 26px; }
   .auth-card::after { right: 24px; top: -38px; width: 54px; height: 38px; }
@@ -290,7 +291,17 @@ h1.title::after { content: ""; display: block; width: 64px; height: 1px; margin:
   .result-banner { flex-direction: column; text-align: center; }
   .question-lead { font-size: 21px; }
   .tie-card { flex-basis: 100%; max-width: none; }
-  .adm-row { flex-direction: column; align-items: stretch; }
+.adm-card { padding: 16px 10px 10px; }
+.adm-row { flex-direction: column; align-items: stretch; gap: 10px; }
+.adm-who { flex-direction: row; justify-content: space-between; align-items: baseline; gap: 8px; }
+.adm-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.adm-acts .adm-btn {
+  width: 100%; min-height: 42px; padding: 8px 10px;
+  font-size: 15px; line-height: 1.15;
+}
+.adm-acts .adm-btn.gold,
+.adm-acts .adm-btn:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.adm-acts .adm-id { grid-column: 1 / -1; text-align: center; }
   .adm-acts .adm-btn { flex: 1 1 auto; }
 }
 @media (max-width: 380px) {

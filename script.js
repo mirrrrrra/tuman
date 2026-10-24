@@ -132,8 +132,8 @@
     const tie = !me.path && store.get(tieKey(me.id));
     if (tie) { try { showTieChoice(JSON.parse(tie)); return; } catch (e) {} }
     if (me.path && PATHS[me.path] && store.get(stageKey(me.id)) === 'result') { goToResultScreen(); return; }
-    if (me.path || me.isAdmin) { showScreen('screen-dashboard'); renderDashboard(); }
-    else showScreen('screen-intro');
+if (me.path) { showScreen('screen-dashboard'); renderDashboard(); }
+else showScreen('screen-intro');
   }
 
   function bindAuth() {
