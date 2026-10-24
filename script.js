@@ -140,8 +140,6 @@ else showScreen('screen-intro');
     const idInput = $('#inputId');
     const pinInput = $('#inputPin');
     const btnAuth = $('#btnStartAuth');
-    const hint = $('#adminCodeHint');
-    idInput.addEventListener('input', () => hint.classList.toggle('show', isOwner(idInput.value.trim())));
 
     let busy = false;
 
@@ -518,7 +516,8 @@ else showScreen('screen-intro');
       } else if (res.data) {
         me = res.data;
         $('#inputId').value = me.id;
-        if (isOwner(me.id)) $('#adminCodeHint').classList.add('show');
+const hintEl = $('#adminCodeHint');
+if (hintEl && isOwner(me.id)) hintEl.classList.add('show');
         routeAfterLogin();
       } else {
         session.token = null;
