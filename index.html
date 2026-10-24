@@ -1,155 +1,217 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#1b1d22">
-<title>Тайны туманных заводей — Речное племя</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Infant:ital,wght@0,400;0,500;0,600;1,400&family=Ruslan+Display&family=PT+Serif:ital,wght@0,400;0,700;1,400&family=PT+Mono&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
-</head>
-<body>
-
-<span class="fog-layer fog-1"></span>
-<span class="fog-layer fog-2"></span>
-<span class="fog-layer fog-3"></span>
-<span class="fog-layer fog-4"></span>
-<span class="fog-layer fog-5"></span>
-<span class="fog-layer fog-6"></span>
-<span class="firefly gf1"></span><span class="firefly gf2"></span>
-<span class="firefly gf3"></span><span class="firefly gf4"></span>
-<div class="vignette"></div>
-<div class="page-loader" id="pageLoader"><div class="loader-ring"></div></div>
-
-<section class="screen active" id="screen-auth">
-  <div class="mist-wrap">
-    <div class="auth-card">
-      <h1 class="screen-title">Тайны туманных заводей</h1>
-      <div class="field">
-        <label for="inputId">ID персонажа</label>
-        <input type="text" id="inputId" inputmode="numeric" autocomplete="off" placeholder=" ">
-      </div>
-      <div class="field">
-        <label for="inputPin">Пароль</label>
-        <input type="password" id="inputPin" placeholder=" " autocomplete="new-password">
-        <p class="err-text" id="authErr">Проверь ID и пароль.</p>
-      </div>
-      <button class="btn btn-primary" id="btnStartAuth">Проснуться?</button>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#1b1d22" />
+    <title>Тайны туманных заводей — Речное племя</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Infant:ital,wght@0,400;0,500;0,600;1,400&family=Ruslan+Display&family=PT+Serif:ital,wght@0,400;0,700;1,400&family=PT+Mono&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <span class="fog-layer fog-1"></span>
+    <span class="fog-layer fog-2"></span>
+    <span class="fog-layer fog-3"></span>
+    <span class="fog-layer fog-4"></span>
+    <span class="fog-layer fog-5"></span>
+    <span class="fog-layer fog-6"></span>
+    <span class="firefly gf1"></span><span class="firefly gf2"></span>
+    <span class="firefly gf3"></span><span class="firefly gf4"></span>
+    <div class="vignette"></div>
+    <div class="page-loader" id="pageLoader">
+      <div class="loader-ring"></div>
     </div>
-  </div>
-</section>
 
-<section class="screen" id="screen-pending">
-  <div class="mist-wrap">
-    <div class="auth-card snug">
-      <h2 class="screen-title" id="pendingName">—</h2>
-      <p class="lore-text">Ваша заявка отправлена ответственным. Как только они подтвердят регистрацию, вы сможете пройти видения.</p>
-      <p class="lore-text">Можете написать Темь [1707227] <a class="link-red" href="https://vk.ru/mirotvorkaa" target="_blank" rel="noopener">VK</a> если хотите, чтобы заявку подтвердили быстрее.</p>
-    </div>
-  </div>
-</section>
-
-<section class="screen" id="screen-intro">
-  <div class="mist-wrap">
-    <div class="auth-card snug story-card" id="introCard">
-      <h2 class="screen-title">Перед началом</h2>
-      <p class="lore-text" style="text-align:center;">Для лучшего погружения рекомендуем включить полноэкранный режим, надеть наушники и устроиться в тихом месте.</p>
-      <p class="wake-hint story-next">нажмите на экран</p>
-    </div>
-  </div>
-</section>
-
-<section class="screen" id="screen-test">
-  <div class="mist-wrap">
-    <div class="auth-card medium">
-      <div class="test-progress">
-        <div class="test-progress-label"><span>Видение</span><span id="testStep">1 / 5</span></div>
-        <div class="river-track"><div class="river-fill" id="testFill"></div></div>
-      </div>
-      <h3 class="question-text" id="questionText">—</h3>
-      <div class="option-list" id="optionList"></div>
-    </div>
-  </div>
-</section>
-
-<section class="screen" id="screen-story">
-  <div class="mist-wrap">
-    <div class="auth-card snug story-card" id="storyCard">
-      <p id="storyText">—</p>
-      <p class="wake-hint story-next">дальше</p>
-    </div>
-  </div>
-</section>
-
-<section class="screen" id="screen-result">
-  <div class="mist-wrap">
-    <div class="auth-card medium">
-      <div class="result-banner">
-        <div class="result-icon" id="resultIcon"></div>
-        <div>
-          <div class="result-path" id="resultPathName">—</div>
-          <div class="result-buff" id="resultBuffText">—</div>
-        </div>
-      </div>
-      <p class="lore-text" id="resultLore" style="margin-top:22px;">—</p>
-      <div class="btn-row">
-        <button class="btn btn-primary" id="btnContinueFromResult">Идти дальше</button>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="screen" id="screen-final">
-  <div class="mist-wrap">
-    <div class="wake-prompt" id="btnLeaveVision">
-      <h2 class="screen-title">Вы уверены что проснулись?</h2>
-      <p class="wake-hint">открыть глаза</p>
-    </div>
-  </div>
-</section>
-
-<section class="screen" id="screen-dashboard">
-  <div class="mist-wrap" id="lockedBox" hidden>
-    <p class="locked-text" id="lockedText"></p>
-  </div>
-  <div class="dash" id="adminBox" hidden>
-    <header>
-      <svg class="river-svg" viewBox="0 0 1000 24" preserveAspectRatio="none">
-        <path d="M0,14 C120,4 200,24 340,14 C480,4 560,24 700,14 C840,4 920,24 1000,14 L1000,24 L0,24 Z" fill="none" stroke="rgba(240,138,140,.35)" stroke-width="1.5"/>
-      </svg>
-      <div class="header-inner">
-        <p class="eyebrow">Речное племя · Тайны туманных заводей</p>
-        <h1 class="title"><span id="dashName">—</span></h1>
-        <div class="profile-row">
-          <div class="chip chip-gold" id="chipPath">Путь: —</div>
-          <div class="chip chip-gold" id="chipBuff">Бафф: —</div>
-          <div class="chip" title="День события">День <span class="mono">1</span></div>
-        </div>
-        <div class="overview">
-          <div class="river-progress">
-            <div class="label"><span>Принято заданий</span><span class="count mono">0 / 0</span></div>
-            <div class="river-track"><div class="river-fill"></div></div>
+    <section class="screen active" id="screen-auth">
+      <div class="mist-wrap">
+        <div class="auth-card">
+          <h1 class="screen-title">Тайны туманных заводей</h1>
+          <div class="field">
+            <label for="inputId">ID персонажа</label>
+            <input
+              type="text"
+              id="inputId"
+              inputmode="numeric"
+              autocomplete="off"
+              placeholder=" "
+            />
           </div>
-          <div class="stat-block">
-            <div class="stat-num mono">0</div>
-            <div class="stat-label">баллы</div>
+          <div class="field">
+            <label for="inputPin">Пароль</label>
+            <input
+              type="password"
+              id="inputPin"
+              placeholder=" "
+              autocomplete="new-password"
+            />
+            <p class="err-text" id="authErr">Проверь ID и пароль.</p>
+          </div>
+          <button class="btn btn-primary" id="btnStartAuth">Проснуться?</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-pending">
+      <div class="mist-wrap">
+        <div class="auth-card snug">
+          <h2 class="screen-title" id="pendingName">—</h2>
+          <p class="lore-text">
+            Ваша заявка отправлена ответственным. Как только они подтвердят
+            регистрацию, вы сможете пройти видения.
+          </p>
+          <p class="lore-text">
+            Можете написать Темь [1707227]
+            <a
+              class="link-red"
+              href="https://vk.ru/mirotvorkaa"
+              target="_blank"
+              rel="noopener"
+              >VK</a
+            >
+            если хотите, чтобы заявку подтвердили быстрее.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-intro">
+      <div class="mist-wrap">
+        <div class="auth-card snug story-card" id="introCard">
+          <h2 class="screen-title">Перед началом</h2>
+          <p class="lore-text" style="text-align: center">
+            Для лучшего погружения рекомендуем включить полноэкранный режим,
+            надеть наушники и устроиться в тихом месте.
+          </p>
+          <p class="wake-hint story-next">нажмите на экран</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-test">
+      <div class="mist-wrap">
+        <div class="auth-card medium">
+          <div class="test-progress">
+            <div class="test-progress-label">
+              <span>Видение</span><span id="testStep">1 / 5</span>
+            </div>
+            <div class="river-track">
+              <div class="river-fill" id="testFill"></div>
+            </div>
+          </div>
+          <h3 class="question-text" id="questionText">—</h3>
+          <div class="option-list" id="optionList"></div>
+                <div class="btn-row">
+        <button class="btn btn-primary" id="btnTestNext" disabled>Дальше</button>
+      </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-story">
+      <div class="mist-wrap">
+        <div class="auth-card snug story-card" id="storyCard">
+          <p id="storyText">—</p>
+          <p class="wake-hint story-next">дальше</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-result">
+      <div class="mist-wrap">
+        <div class="auth-card medium">
+          <div class="result-banner">
+            <div class="result-icon" id="resultIcon"></div>
+            <div>
+              <div class="result-path" id="resultPathName">—</div>
+              <div class="result-buff" id="resultBuffText">—</div>
+            </div>
+          </div>
+          <p class="lore-text" id="resultLore" style="margin-top: 22px">—</p>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="btnContinueFromResult">
+              Идти дальше
+            </button>
           </div>
         </div>
       </div>
-    </header>
-    <div class="view-tabs"><button class="view-tab active">Ответственные</button></div>
-    <main class="dash-main"><div class="mod-subtabs"></div><div id="adminPanel"></div></main>
-  </div>
-</section>
+    </section>
 
-<div class="toast" id="toast"></div>
-<audio id="bgMusic" src="tuman.mp3" loop preload="none"></audio>
+    <section class="screen" id="screen-final">
+      <div class="mist-wrap">
+        <div class="wake-prompt" id="btnLeaveVision">
+          <h2 class="screen-title">Вы уверены что проснулись?</h2>
+          <p class="wake-hint">открыть глаза</p>
+        </div>
+      </div>
+    </section>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-config.js"></script>
-<script src="data.js"></script>
-<script src="script.js"></script>
-</body>
+    <section class="screen" id="screen-dashboard">
+      <div class="mist-wrap" id="lockedBox" hidden>
+        <p class="locked-text" id="lockedText"></p>
+      </div>
+      <div class="dash" id="adminBox" hidden>
+        <header>
+          <svg
+            class="river-svg"
+            viewBox="0 0 1000 24"
+            preserveAspectRatio="none"
+          >
+            <path
+              d="M0,14 C120,4 200,24 340,14 C480,4 560,24 700,14 C840,4 920,24 1000,14 L1000,24 L0,24 Z"
+              fill="none"
+              stroke="rgba(240,138,140,.35)"
+              stroke-width="1.5"
+            />
+          </svg>
+          <div class="header-inner">
+            <p class="eyebrow">Речное племя · Тайны туманных заводей</p>
+            <h1 class="title"><span id="dashName">—</span></h1>
+            <div class="profile-row">
+              <div class="chip chip-gold" id="chipPath">Путь: —</div>
+              <div class="chip chip-gold" id="chipBuff">Бафф: —</div>
+              <div class="chip" title="День события">
+                День <span class="mono">1</span>
+              </div>
+            </div>
+            <div class="overview">
+              <div class="river-progress">
+                <div class="label">
+                  <span>Принято заданий</span
+                  ><span class="count mono">0 / 0</span>
+                </div>
+                <div class="river-track"><div class="river-fill"></div></div>
+              </div>
+              <div class="stat-block">
+                <div class="stat-num mono">0</div>
+                <div class="stat-label">баллы</div>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div class="view-tabs">
+          <button class="view-tab active">Ответственные</button>
+        </div>
+        <main class="dash-main">
+          <div class="mod-subtabs"></div>
+          <div id="adminPanel"></div>
+        </main>
+      </div>
+    </section>
+
+    <div class="toast" id="toast"></div>
+    <audio id="bgMusic" src="tuman.mp3" loop preload="none"></audio>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="data.js"></script>
+    <script src="script.js"></script>
+  </body>
 </html>

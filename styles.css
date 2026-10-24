@@ -589,6 +589,17 @@ textarea:focus {
   background: rgba(240, 138, 140, 0.09);
 }
 
+.option-item.selected {
+  background: rgba(240, 138, 140, 0.12);
+  border-color: var(--gold);
+  color: #e3e8ee;
+}
+.btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
 .result-banner {
   display: flex;
   align-items: center;
@@ -1280,13 +1291,34 @@ h1.title::after {
     flex-basis: 100%;
     max-width: none;
   }
+  .adm {
+    gap: 10px;
+    min-width: 0;
+  }
   .adm-card {
-    padding: 16px 10px 10px;
+    padding: 12px 8px 8px;
+    border-radius: 18px;
+    min-width: 0;
+  }
+  .adm-title {
+    font-size: 17px;
+  }
+  .adm-count {
+    margin-left: 6px;
+    padding: 1px 8px;
+    font-size: 11px;
+  }
+  .adm-line {
+    margin: 6px auto;
   }
   .adm-row {
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    flex-wrap: nowrap;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 8px;
+    border-radius: 12px;
   }
   .adm-who {
     flex-direction: row;
@@ -1294,17 +1326,26 @@ h1.title::after {
     align-items: baseline;
     gap: 8px;
   }
+  .adm-name {
+    min-width: 0;
+    font-size: 16px;
+    line-height: 1.2;
+  }
+  .adm-id {
+    flex-shrink: 0;
+    font-size: 10px;
+  }
   .adm-acts {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
   }
   .adm-acts .adm-btn {
     width: 100%;
-    min-height: 42px;
-    padding: 8px 10px;
-    font-size: 15px;
-    line-height: 1.15;
+    min-height: 36px;
+    padding: 4px 8px;
+    font-size: 14px;
+    line-height: 1.1;
   }
   .adm-acts .adm-btn.gold,
   .adm-acts .adm-btn:last-child:nth-child(odd) {
