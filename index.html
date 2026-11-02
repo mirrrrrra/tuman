@@ -30,6 +30,7 @@
       <div class="loader-ring"></div>
     </div>
 
+    <!-- вход -->
     <section class="screen active" id="screen-auth">
       <div class="mist-wrap">
         <div class="auth-card">
@@ -59,6 +60,7 @@
       </div>
     </section>
 
+    <!-- ожидание подтверждения -->
     <section class="screen" id="screen-pending">
       <div class="mist-wrap">
         <div class="auth-card snug">
@@ -155,11 +157,13 @@
       </div>
     </section>
 
+    <!-- главный экран -->
     <section class="screen" id="screen-dashboard">
       <div class="mist-wrap" id="lockedBox" hidden>
         <p class="locked-text" id="lockedText"></p>
       </div>
-      <div class="dash" id="adminBox" hidden>
+
+      <div class="dash" id="dashBox" hidden>
         <header>
           <svg
             class="river-svg"
@@ -180,33 +184,77 @@
               <div class="chip chip-gold" id="chipPath">Путь: —</div>
               <div class="chip chip-gold" id="chipBuff">Бафф: —</div>
               <div class="chip" title="День события">
-                День <span class="mono">1</span>
+                День <span class="mono" id="dayNum">0</span>
               </div>
+              <div class="chip chip-btn" id="btnLogout">Выйти</div>
             </div>
             <div class="overview">
               <div class="river-progress">
                 <div class="label">
-                  <span>Принято заданий</span
-                  ><span class="count mono">0 / 0</span>
+                  <span>Выполнено</span
+                  ><span class="count mono" id="levelPoints">0 / 0</span>
                 </div>
-                <div class="river-track"><div class="river-fill"></div></div>
+                <div class="river-track">
+                  <div class="river-fill" id="levelFill"></div>
+                </div>
               </div>
               <div class="stat-block">
-                <div class="stat-num mono">0</div>
+                <div class="stat-num mono" id="personalScore">0</div>
                 <div class="stat-label">баллы</div>
               </div>
             </div>
           </div>
         </header>
+
         <div class="view-tabs">
-          <button class="view-tab active">Ответственные</button>
+          <button class="view-tab active" data-tab="tasks">Задания</button>
+          <button class="view-tab" data-tab="mod" id="modTabBtn" hidden>
+            Ответственные
+          </button>
         </div>
+
         <main class="dash-main">
-          <div class="mod-subtabs"></div>
-          <div id="adminPanel"></div>
+          <div class="tabview active" id="tabview-tasks">
+            <div class="tasks-toolbar">
+              <div class="state-legend">
+                <span class="st-none"><i></i>не начато</span>
+                <span class="st-pending"><i></i>отправлено</span>
+                <span class="st-approved"><i></i>принято</span>
+              </div>
+              <button class="btn-toggle-done" id="btnToggleDone">
+                Скрыть выполненные
+              </button>
+            </div>
+            <div class="skill-map" id="taskTree"></div>
+          </div>
+
+          <div class="tabview" id="tabview-mod">
+            <div class="mod-subtabs"></div>
+            <div id="adminPanel"></div>
+          </div>
         </main>
       </div>
     </section>
+
+    <!-- окно задания -->
+    <div class="modal-backdrop" id="taskModalBackdrop">
+      <div class="task-modal" id="taskModal">
+        <button class="modal-close" id="modalCloseBtn">✕</button>
+        <div id="taskModalBody"></div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="reportModalBackdrop">
+      <div class="task-modal" id="reportModal">
+        <button class="modal-close" id="reportModalCloseBtn">✕</button>
+        <div id="reportModalBody"></div>
+      </div>
+    </div>
+
+    <div class="image-viewer" id="imageViewer">
+      <button class="image-viewer-close" id="imageViewerClose">✕</button>
+      <img id="imageViewerImg" src="" alt="" />
+    </div>
 
     <div class="toast" id="toast"></div>
     <audio id="bgMusic" src="tuman.mp3" loop preload="none"></audio>
