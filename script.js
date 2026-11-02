@@ -1076,7 +1076,7 @@
             node =
               '<div class="task-node-card locked" ' +
               lockAttrs(id, info) +
-              '><div class="tnc-lock">✦</div><div class="tnc-name">' +
+              '><div class="tnc-name">' +
               info.title +
               '</div><div class="tnc-lock-note">' +
               info.note +
@@ -1119,7 +1119,6 @@
             h +=
               '<div class="m-card locked" ' +
               lockAttrs(id, info) +
-              '><span class="m-lock-i">✦</span>' +
               '<span class="m-lock-d">' +
               info.short +
               "</span></div>";
