@@ -4108,3 +4108,34 @@ html.embed .wrap {
   color: var(--muted);
   text-shadow: none;
 }
+
+.consent {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 14px;
+  font: 16px/1.4 "Cormorant Infant", serif;
+  color: var(--text);
+  cursor: pointer;
+}
+.consent input {
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  flex-shrink: 0;
+  accent-color: var(--gold);
+}
+
+.img-upload-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 10px 0 0;
+}
+.img-upload-grid:empty {
+  display: none;
+}
+.img-upload-grid .img-upload-preview img {
+  max-height: 140px;
+}
+

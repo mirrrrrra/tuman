@@ -723,9 +723,26 @@
 
   const ROOT = "1707227";
   const BUCKET = "reports";
+  const CONSENT_TAG = "[[blog-ok]]";
+  const IMG_CONSENT = "consent:1";
+  const hasConsent = (a) => String(a || "").includes(CONSENT_TAG);
+  const stripConsent = (a) =>
+    String(a || "")
+      .replace(CONSENT_TAG, "")
+      .trim();
+  const taskNeedsConsent = (t) => (t.images || []).includes(IMG_CONSENT);
+  const realImages = (t) => (t.images || []).filter((x) => x !== IMG_CONSENT);
+    const MAX_IMGS = 3;
+  const imgsOf = (s) =>
+    Array.isArray(s.images) && s.images.length
+      ? s.images
+      : s.image
+        ? [s.image]
+        : [];
+  const consentOf = (s) => s.consent === true || hasConsent(s.answer);
   const EVENT_DAYS = 7;
   const ROWS_AHEAD = 1;
-  const CHAIN_UNLOCK = false;
+  const CHAIN_UNLOCK = true;
   const LOCKED_TEXT = "Задания будут доступны с 02.11";
   const TOTAL_TASKS = 21;
   const EVENT_START = new Date(2026, 10, 2);
@@ -984,7 +1001,7 @@
           kind === "day"
             ? (li === effDay ? "завтра · день " : "день ") + (li + 1)
             : kind === "chain"
-              ? "выполни задание выше"
+              ? "откроется, когда выполнишь задание выше"
               : "откроется позже",
         msg:
           kind === "day"
@@ -1438,7 +1455,7 @@
     );
   }
   const extrasHtml = (t) =>
-    (t.images || [])
+    realImages(t)
       .map(
         (s) =>
           '<img src="' + esc(s) + '" class="img-preview js-zoomable" alt="">',
@@ -1616,25 +1633,52 @@
     closeModal();
   });
 
-  function uploadBlock(img) {
+  function uploadBlock(items) {
     return (
-      '<div class="img-upload">' +
-      (img
-        ? '<div class="img-upload-preview"><img src="' +
-          esc(img) +
-          '" class="js-zoomable" alt="Отчёт"><button type="button" class="img-upload-remove" id="imgRemoveBtn" title="Убрать фото">×</button></div>'
-        : '<label class="img-upload-dropzone" id="imgDropzone" for="modalImage"><div class="img-upload-hint">Выбрать или перетащить фото</div></label>') +
-      '<input type="file" id="modalImage" accept="image/*" class="visually-hidden"></div>'
+      '<div class="img-upload"><div class="img-upload-grid">' +
+      items
+        .map(
+          (it, i) =>
+            '<div class="img-upload-preview"><img src="' +
+            esc(it.src) +
+            '" class="js-zoomable" alt="Отчёт"><button type="button" class="img-upload-remove" data-rm="' +
+            i +
+            '" title="Убрать фото">×</button></div>',
+        )
+        .join("") +
+      "</div>" +
+      (items.length < MAX_IMGS
+        ? '<label class="img-upload-dropzone" id="imgDropzone" for="modalImage"><div class="img-upload-hint">Выбрать или перетащить фото (' +
+          items.length +
+          " / " +
+          MAX_IMGS +
+          ")</div></label>"
+        : "") +
+      '<input type="file" id="modalImage" accept="image/*" multiple class="visually-hidden"></div>'
     );
   }
-  function bindUpload(onRemove) {
+  function bindUpload(items, onChange) {
+    const addFiles = (list) => {
+      const files = Array.from(list || []).filter((f) =>
+        f.type.startsWith("image/"),
+      );
+      for (const f of files) {
+        if (items.length >= MAX_IMGS) {
+          toast("Максимум " + MAX_IMGS + " фото");
+          break;
+        }
+        if (f.size > 6 * 1024 * 1024) {
+          toast("Фото больше 6 МБ: " + f.name);
+          continue;
+        }
+        items.push({ src: URL.createObjectURL(f), file: f });
+      }
+      onChange();
+    };
+    const input = $("#modalImage");
+    if (input) input.addEventListener("change", () => addFiles(input.files));
     const dz = $("#imgDropzone");
     if (dz) {
-      const input = $("#modalImage");
-      const hint = dz.querySelector(".img-upload-hint");
-      const label = (n) => {
-        hint.textContent = n.length > 32 ? n.slice(0, 30) + "…" : n;
-      };
       dz.addEventListener("dragover", (e) => {
         e.preventDefault();
         dz.classList.add("dragover");
@@ -1643,24 +1687,18 @@
       dz.addEventListener("drop", (e) => {
         e.preventDefault();
         dz.classList.remove("dragover");
-        const f =
-          e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-        if (f) {
-          input.files = e.dataTransfer.files;
-          label(f.name);
-        }
-      });
-      input.addEventListener("change", () => {
-        if (input.files[0]) label(input.files[0].name);
+        addFiles(e.dataTransfer && e.dataTransfer.files);
       });
     }
-    const rm = $("#imgRemoveBtn");
-    if (rm)
-      rm.onclick = (e) => {
+    $all("[data-rm]").forEach((b) =>
+      b.addEventListener("click", (e) => {
         e.preventDefault();
-        onRemove();
-      };
+        items.splice(Number(b.dataset.rm), 1);
+        onChange();
+      }),
+    );
   }
+
   async function uploadImage(file) {
     const ext = (file.name.split(".").pop() || "png")
       .toLowerCase()
@@ -1682,13 +1720,22 @@
     const st = S.progress[t.id] || {};
     const status = st.status || "none";
     if (!modal.draft)
-      modal.draft = { answer: st.answer || "", image: st.image || null };
+      modal.draft = {
+        answer: stripConsent(st.answer),
+        consent: st.consent != null ? !!st.consent : hasConsent(st.answer),
+        items: imgsOf(st).map((u) => ({ src: u, url: u })),
+      };
     const form = () =>
       '<div class="field"><label for="modalAnswer">Ответ</label><textarea id="modalAnswer" rows="4" placeholder=" ">' +
       esc(modal.draft.answer) +
       '</textarea></div><div class="field"><label>Изображение / скриншоты</label>' +
-      uploadBlock(modal.draft.image) +
-      "</div>";
+      uploadBlock(modal.draft.items) +
+      "</div>" +
+      (taskNeedsConsent(t)
+        ? '<label class="consent"><input type="checkbox" id="modalConsent"' +
+          (modal.draft.consent ? " checked" : "") +
+          "><span>Я согласен(на), что мою работу могут показать в блоге с итогами ивента (если он будет) </span></label>"
+        : "");
     let area;
     if (status === "pending")
       area =
@@ -1719,41 +1766,46 @@
       pointsHtml(t) +
       area;
     zoomable($("#taskModalBody"));
-    bindUpload(() => {
+    bindUpload(modal.draft.items, () => {
       const a = $("#modalAnswer");
       if (a) modal.draft.answer = a.value;
-      modal.draft.image = null;
+      const c = $("#modalConsent");
+      if (c) modal.draft.consent = c.checked;
       renderReport(t);
     });
     const b = $("#btnSubmitTask");
     if (b) b.onclick = () => submitReport(t, b);
   }
-  async function submitReport(t, btn) {
+    async function submitReport(t, btn) {
     const answer = ($("#modalAnswer") ? $("#modalAnswer").value : "").trim();
-    const fileEl = $("#modalImage");
-    const file =
-      fileEl && fileEl.files && fileEl.files[0] ? fileEl.files[0] : null;
-    let image = modal.draft.image || null;
-    if (!answer && !file && !image)
-      return toast("Добавь ответ или изображение");
-    if (file && file.size > 6 * 1024 * 1024) return toast("Фото больше 6 МБ");
+    const consent = !!($("#modalConsent") && $("#modalConsent").checked);
+    const items = modal.draft.items;
+    if (!answer && !items.length) return toast("Добавь ответ или изображение");
     btn.disabled = true;
-    if (file) {
-      try {
-        toast("Загружаю фото…");
-        image = await uploadImage(file);
-      } catch (e) {
-        console.error(e);
-        toast("Не удалось загрузить фото");
-        btn.disabled = false;
-        return;
+    const urls = [];
+    try {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].url) {
+          urls.push(items[i].url);
+          continue;
+        }
+        toast("Загружаю фото " + (i + 1) + " / " + items.length + "…");
+        items[i].url = await uploadImage(items[i].file);
+        urls.push(items[i].url);
       }
+    } catch (e) {
+      console.error(e);
+      toast("Не удалось загрузить фото");
+      btn.disabled = false;
+      return;
     }
     const res = await rpc("app_submit", {
       p_token: session.token,
       p_task: modal.id,
       p_answer: answer,
-      p_image: image,
+      p_image: urls[0] || null,
+      p_images: urls,
+      p_consent: consent,
     });
     if (res.error) {
       btn.disabled = false;
@@ -1763,6 +1815,7 @@
           locked: "Задание ещё закрыто",
           status: "Отчёт уже отправлен",
           empty: "Добавь ответ или изображение",
+          too_many: "Максимум 3 фото",
         }[res.error] || "Не отправилось, проверь интернет",
       );
       return;
@@ -1794,6 +1847,7 @@
     ["people", "Участники"],
     ["daily", "Ежедневные"],
     ["preds", "Предсказания"],
+    ["allowed", "Разрешённые"],
     ["games", "Игры"],
   ];
 
@@ -1833,6 +1887,7 @@
       people: adminPeople,
       daily: adminDaily,
       preds: adminPreds,
+      allowed: adminAllowed,
       games: adminGames,
     }[modTab];
     f(p, () => stamp === modStamp);
@@ -1856,7 +1911,51 @@
     if (JSON.stringify(res.data.items) !== lastRepJson && !anyModalOpen())
       renderMod();
   }
-
+  async function adminAllowed(p, alive) {
+    const res = await rpc("app_admin_reports", {
+      p_token: session.token,
+      p_status: "all",
+    });
+    if (!alive()) return;
+    const card = document.createElement("section");
+    card.className = "adm-card";
+    if (res.error || !res.data) {
+      card.innerHTML = '<p class="adm-empty">Не удалось загрузить.</p>';
+      p.appendChild(card);
+      return;
+    }
+    const items = (res.data.items || []).filter(
+      (s) => consentOf(s) && s.status !== "rejected",
+    );
+    card.innerHTML =
+      '<h3 class="adm-title">Разрешённые работы<span class="adm-count">' +
+      items.length +
+      '</span></h3><div class="adm-line"></div>' +
+      '<p class="adm-empty">Авторы этих работ разрешили показать их в блоге с итогами.</p>' +
+      (items.length ? "" : '<p class="adm-empty">Пока никого.</p>');
+    items.forEach((s) => {
+      const row = document.createElement("div");
+      row.className = "adm-row adm-click";
+      const when = s.at ? new Date(s.at).toLocaleString("ru-RU") : "—";
+      row.innerHTML =
+        '<div class="adm-who"><span class="adm-name">' +
+        esc(s.uname) +
+        " · ID " +
+        esc(s.uid) +
+        '</span><span class="adm-id">' +
+        esc(s.tname) +
+        " · " +
+        when +
+        '</span></div><div class="adm-acts"><span class="adm-tag ' +
+        s.status +
+        '">' +
+        STATUS[s.status] +
+        "</span></div>";
+      row.onclick = () => openReport(s);
+      card.appendChild(row);
+    });
+    p.appendChild(card);
+  }
   async function adminReports(p, alive) {
     const fr = document.createElement("div");
     fr.className = "adm-filters";
@@ -1908,6 +2007,7 @@
         esc(s.tname) +
         " · " +
         when +
+        (consentOf(s) ? " · ✓ блог" : "") +
         '</span></div><div class="adm-acts"><span class="adm-tag ' +
         s.status +
         '">' +
@@ -1945,13 +2045,19 @@
       "</span><span><b>Отправлено:</b> " +
       when +
       "</span></div>" +
-      (s.image
-        ? '<img src="' +
-          esc(s.image) +
-          '" class="img-preview js-zoomable" alt="Отчёт">'
+      imgsOf(s)
+        .map(
+          (u) =>
+            '<img src="' +
+            esc(u) +
+            '" class="img-preview js-zoomable" alt="Отчёт">',
+        )
+        .join("") +
+      (consentOf(s)
+        ? '<p class="status-note approved">Автор разрешил использовать работу в блоге</p>'
         : "") +
       '<p class="lore-text">' +
-      (s.answer ? esc(s.answer) : "<i>без текста</i>") +
+      (stripConsent(s.answer) ? esc(stripConsent(s.answer)) : "<i>без текста</i>") +
       "</p>" +
       acts;
     zoomable($("#reportModalBody"));
@@ -2002,7 +2108,10 @@
             : null,
       layer: Math.max(0, Number(t.layer) || 0),
       web: t.web ? Number(t.web) : 0,
-      images: Array.isArray(t.images) ? t.images.slice() : [],
+      images: Array.isArray(t.images)
+        ? t.images.filter((x) => x !== IMG_CONSENT)
+        : [],
+      consent: Array.isArray(t.images) && t.images.includes(IMG_CONSENT),
     }));
     const wrap = document.createElement("div");
     p.appendChild(wrap);
@@ -2031,6 +2140,7 @@
           .value.split("\n")
           .map((x) => x.trim())
           .filter(Boolean);
+        t.consent = $('[data-f="consent"]', c).checked;
       });
     };
 
@@ -2126,6 +2236,9 @@
             '<textarea class="roster-text" data-f="images" rows="2" placeholder="Картинки к заданию: по ссылке в строке (необязательно)">' +
             esc(t.images.join("\n")) +
             "</textarea>" +
+            '<label class="consent"><input type="checkbox" data-f="consent"' +
+            (t.consent ? " checked" : "") +
+            "><span>Показывать участнику галочку «согласен на публикацию в блоге»</span></label>" +
             '<label class="adm-btn tk-upload">Загрузить картинку с устройства<input type="file" accept="image/*" class="visually-hidden" data-up></label>' +
             "</div>";
         });
@@ -2205,6 +2318,7 @@
             layer: Number(b.dataset.add),
             web: 0,
             images: [],
+            consent: false,
           });
           paint();
         };
@@ -2232,7 +2346,7 @@
           pts_buff: t.pts_buff,
           layer: t.layer,
           web: t.web || null,
-          images: t.images,
+          images: t.images.concat(t.consent ? [IMG_CONSENT] : []),
         }));
         const r = await rpc("app_admin_tasks_save", {
           p_token: session.token,
@@ -2382,8 +2496,7 @@
     $("#taskTree").addEventListener("click", (e) => {
       const n = e.target.closest("[data-id]");
       if (!n) return;
-      if (n.dataset.locked)
-        toast("Выполни одно из заданий выше, и это откроется");
+      if (n.dataset.locked) toast(n.dataset.msg || "Пока закрыто");
       else openTask(n.dataset.id);
     });
     let lastW = innerWidth,
