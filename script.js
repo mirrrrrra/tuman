@@ -2,7 +2,7 @@
   "use strict";
 
   const sb = window.sb;
-  const OWNERS = ["1707227", "1634921"];
+  const OWNERS = ["1707227"];
   const isOwner = (id) => OWNERS.includes(String(id));
 
   const mem = {};
