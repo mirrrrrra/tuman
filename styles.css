@@ -4341,3 +4341,67 @@ html.embed .wrap {
 .daily-card.daily-big .daily-orn {
   margin: 6px 0 12px;
 }
+
+.chip-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.chip-link:hover {
+  background: rgba(240, 138, 140, 0.2);
+  border-color: var(--gold);
+}
+.daily-count {
+  max-width: 640px;
+  margin: 0 auto 12px;
+  text-align: center;
+  font: 12px "PT Mono", monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.daily-count b {
+  color: var(--gold);
+  font-weight: 400;
+}
+.daily-note {
+  text-align: center;
+  font: italic 18px "Cormorant Infant", serif;
+}
+.daily-note.pending {
+  color: var(--moss);
+}
+.daily-note.approved {
+  color: var(--gold);
+}
+.daily-note.rejected {
+  color: var(--err);
+}
+
+.daily-count {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.daily-count-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, currentColor 35%, transparent)
+  );
+}
+.daily-count-lbl {
+  opacity: 0.6;
+}
+.daily-count-val {
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}

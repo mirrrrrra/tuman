@@ -952,7 +952,8 @@
     tree = layout();
     const byId = {};
     S.tasks.forEach((t) => (byId[t.id] = t));
-    const effDay = me && me.isAdmin ? Math.max(1, S.day) : S.day;
+    const isAdm = !!(me && me.isAdmin);
+const effDay = isAdm ? 999 : S.day;
     const W = Math.max(280, wrap.clientWidth || 900);
     const mob = W < 720;
     const wide = true;
@@ -993,11 +994,12 @@
       node +
       "</div>";
 
-    const kindOf = (id, li) => {
-      const t = byId[id],
-        st = stOf(id),
-        dayLocked = li + 1 > effDay;
-      if (!t) return dayLocked ? "day" : "soon";
+const kindOf = (id, li) => {
+  const t = byId[id],
+    st = stOf(id),
+    dayLocked = li + 1 > effDay;
+  if (isAdm && t) return null;
+  if (!t) return dayLocked ? "day" : "soon";
       if (st === "none" && dayLocked) return "day";
       if (CHAIN_UNLOCK && !isUnlocked(id)) return "chain";
       return null;
@@ -1040,7 +1042,9 @@
     let prevSlots = null;
     let lockedShown = 0;
     const maxRows = Math.max(EVENT_DAYS, tree.layers.length);
-    const rows = Math.min(maxRows, Math.max(0, effDay) + 1 + ROWS_AHEAD);
+const rows = isAdm
+  ? tree.layers.length
+  : Math.min(maxRows, Math.max(0, effDay) + 1 + ROWS_AHEAD);
 
     for (let li = 0; li < rows; li++) {
       const real = tree.layers[li] || [];
@@ -1055,7 +1059,9 @@
       });
       prevSlots = slots;
 
-      let vis = slots.filter((id) => showDone || stOf(id) !== "approved");
+let vis = slots.filter(
+  (id) => (showDone || stOf(id) !== "approved") && (!isAdm || byId[id]),
+);
       if (li + 1 > effDay) {
         if (lockedShown >= 3) continue;
         vis = vis.slice(0, 3 - lockedShown);
@@ -1241,20 +1247,41 @@ function renderDaily() {
   const wrap = $("#dailyWrap");
   if (!wrap || !S) return;
   const d = S.daily;
+  const dailyTotal = Math.max(0, (S.totalCount || 0) - S.tasks.length);
+  const dailyDone = Object.keys(S.progress || {}).filter(
+    (k) =>
+      k.indexOf("daily-") === 0 &&
+      (S.progress[k].status === "pending" ||
+        S.progress[k].status === "approved"),
+  ).length;
+  const counter =
+    '<div class="daily-count"><span class="daily-count-line"></span>' +
+    '<span class="daily-count-lbl">выполнено</span>' +
+    '<span class="daily-count-val"><span class="t-pink">' +
+    dailyDone +
+    "</span> / " +
+    dailyTotal +
+    "</span></div>";
   let h = "";
-  if (!d || d.state === "before") {
+ if (!d || d.state === "before") {
     h =
       '<section class="stage-card soft"><p class="card-wait">Откроется <b>03.11</b>. Загляни сюда в этот день.</p></section>';
   } else if (d.state === "after") {
     h =
-      '<section class="stage-card soft"><p class="card-wait">Ежедневные закончились. Баллы за них: <b>' +
-      num(S.dailyScore) +
-      " / " +
-      num(S.dailyMax) +
-      "</b></p></section>";
+      counter +
+      '<section class="stage-card soft"><p class="card-wait">Отчёт отправлен</p></section>';
   } else {
     const st = stOf(d.id);
+    const note =
+      st === "pending"
+        ? "Задание отправлено! Оно на проверке."
+        : st === "approved"
+          ? "Задание принято!"
+          : st === "rejected"
+            ? "Задание отклонено. Открой его и отправь заново."
+            : "";
     h =
+      counter +
       '<article class="daily-card daily-big state-' +
       st +
       '" id="dailyCard"><div class="daily-eyebrow">Ежедневное задание · ' +
@@ -1265,11 +1292,10 @@ function renderDaily() {
       rich(d.body || "Описание появится позже.") +
       '</div><div class="daily-bottom"><span>баллы: ' +
       num(d.pts) +
-            '</span><span class="daily-status">' +
+      '</span><span class="daily-status">' +
       STATUS[st] +
-      '</span></div></article><p class="daily-note">' +
-      esc(DAILY_INTRO) +
-      "</p>";
+      "</span></div></article>" +
+      (note ? '<p class="daily-note ' + st + '">' + esc(note) + "</p>" : "");
   }
   wrap.innerHTML = h;
   const c = $("#dailyCard", wrap);
@@ -1279,7 +1305,6 @@ function renderDaily() {
       openTask(d.id);
     };
 }
-
   function renderRewards() {
     const wrap = $("#rewardsWrap");
     if (!wrap) return;
@@ -2169,8 +2194,7 @@ function renderDaily() {
       top.innerHTML =
         '<h3 class="adm-title">Задания<span class="adm-count">' +
         draft.length +
-        '</span></h3><div class="adm-line"></div>' +
-        '<p class="adm-empty">«Отчёт»: участник присылает текст и фото, вы принимаете вручную. «Игра»: открывается игра с указанным номером и засчитывается сама. Задания одного дня образуют ряд в дереве, порядок внутри ряда перемешивается автоматически. Категория задаёт, какому пути идёт бафф. Изменения применяются после «Сохранить всё».</p>' +
+        '</span></h3><div class="adm-line"></div>'  +
         '<div class="adm-acts" style="justify-content:center;margin-top:8px"><button class="adm-btn gold" data-top="save">Сохранить всё</button></div>';
       wrap.appendChild(top);
 
@@ -2421,7 +2445,6 @@ function renderDaily() {
       '<h3 class="adm-title">Предсказания<span class="adm-count">' +
       lines.length +
       '</span></h3><div class="adm-line"></div>' +
-      '<p class="adm-empty">Одно предсказание в строке. Каждый игрок тянет по одному в день, повторов нет, пока есть новые.</p>' +
       '<textarea class="roster-text" id="predText" rows="12">' +
       esc(lines.join("\n")) +
       "</textarea>" +
@@ -2446,7 +2469,6 @@ function renderDaily() {
     card.className = "adm-card";
     card.innerHTML =
       '<h3 class="adm-title">Игры</h3><div class="adm-line"></div><p class="adm-empty" id="gameStatus">Проверяю…</p>' +
-      '<p class="adm-empty">Игры берутся из файла games.html, лежащего рядом с сайтом. Загрузка сюда нужна только как запасной вариант.</p>' +
       '<div class="adm-acts" style="justify-content:center"><label class="adm-btn gold" style="display:inline-flex;align-items:center;cursor:pointer">' +
       'Выбрать games.html<input type="file" id="gameFile" accept=".html,text/html" class="visually-hidden"></label></div>';
     p.appendChild(card);
@@ -2463,7 +2485,7 @@ function renderDaily() {
     );
     if (res.data && res.data.size)
       parts.push(
-        "в базе: " +
+        ": " +
           Math.round(res.data.size / 1024) +
           " КБ · " +
           new Date(res.data.updated).toLocaleString("ru-RU"),
