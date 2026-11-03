@@ -764,10 +764,24 @@
     ratniki: "dvizhenie",
     kudesniki: "slovo",
   };
-  const DAILY_INTRO =
-    "Ежедневные задания доступны с 03.11 по 07.11: по одному в день, за каждое +10 баллов. Часть из них спрятана в разделах «О себе» у актёров, так что будьте бдительны: не всё, что творится на берегу, лежит на виду.";
+  const DAILY_INTRO =""
 
   const esc = escapeHtml;
+  const rich = (s) =>
+    esc(s)
+      .replace(
+        /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+        '<a class="link-red" href="$2" target="_blank" rel="noopener">$1</a>',
+      )
+      .replace(/\*\*(.+?)\*\*/g, '<span class="t-pink">$1</span>')
+      .replace(/==(.+?)==/g, '<span class="t-blue">$1</span>')
+      .replace(/\*(.+?)\*/g, "<em>$1</em>");
+  const plain = (s) =>
+    esc(
+      String(s == null ? "" : s)
+        .replace(/\[([^\]]+)\]\(https?:\/\/[^)\s]+\)/g, "")
+        .replace(/\*\*|==|\*/g, ""),
+    );
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const round1 = (n) => Math.round(n * 10) / 10;
   const num = (n) => String(round1(Number(n) || 0)).replace(".", ",");
@@ -834,8 +848,8 @@
     $("#modTabBtn").hidden = !me.isAdmin;
     if (!me.isAdmin && tab === "mod") switchTab("tasks");
 
-    $(".view-tabs").hidden = !me.isAdmin;
     renderTasks();
+    renderDaily();
     if (me.isAdmin && tab === "mod") safeRenderMod();
   }
 
@@ -852,6 +866,7 @@
     );
     if (!S) return;
     if (name === "tasks") renderTasks();
+        if (name === "daily") renderDaily();
     if (name === "mod") {
       renderMod();
       if (modTab === "people") refreshAdmin(true);
@@ -1109,7 +1124,7 @@
               esc(t.name) +
               "</div></div>" +
               '<div class="tnc-req">' +
-              esc(t.req || "Описание появится позже.") +
+              plain(t.req || "Описание появится позже.") +
               "</div>" +
               '<div class="tnc-bottom"><span class="tnc-pts">баллы: <b>' +
               num(t.pts) +
@@ -1222,50 +1237,48 @@
     svg.innerHTML = d;
   }
 
-  function renderDaily() {
-    const wrap = $("#dailyWrap");
-    if (!wrap) return;
-    const d = S.daily;
-    let h =
-      '<section class="daily-intro"><h3 class="daily-intro-title">Ежедневные задания</h3><p>' +
+function renderDaily() {
+  const wrap = $("#dailyWrap");
+  if (!wrap || !S) return;
+  const d = S.daily;
+  let h = "";
+  if (!d || d.state === "before") {
+    h =
+      '<section class="stage-card soft"><p class="card-wait">Откроется <b>03.11</b>. Загляни сюда в этот день.</p></section>';
+  } else if (d.state === "after") {
+    h =
+      '<section class="stage-card soft"><p class="card-wait">Ежедневные закончились. Баллы за них: <b>' +
+      num(S.dailyScore) +
+      " / " +
+      num(S.dailyMax) +
+      "</b></p></section>";
+  } else {
+    const st = stOf(d.id);
+    h =
+      '<article class="daily-card daily-big state-' +
+      st +
+      '" id="dailyCard"><div class="daily-eyebrow">Ежедневное · ' +
+      dateOf(d.idx + 1) +
+      '</div><div class="daily-name">' +
+      esc(d.title || "Ежедневное задание") +
+      '</div><div class="daily-orn"></div><div class="daily-req">' +
+      rich(d.body || "Описание появится позже.") +
+      '</div><div class="daily-bottom"><span>баллы: ' +
+      num(d.pts) +
+            '</span><span class="daily-status">' +
+      STATUS[st] +
+      '</span></div></article><p class="daily-note">' +
       esc(DAILY_INTRO) +
-      "</p></section>";
-    if (d.state === "before") {
-      h +=
-        '<section class="stage-card soft"><p class="card-wait">Откроется <b>03.11</b>. Загляни сюда в этот день.</p></section>';
-    } else if (d.state === "after") {
-      h +=
-        '<section class="stage-card soft"><p class="card-wait">Ежедневные задания закончились. Баллы за них: <b>' +
-        num(S.dailyScore) +
-        " / " +
-        num(S.dailyMax) +
-        "</b>.</p></section>";
-    } else {
-      const st = stOf(d.id);
-      h +=
-        '<article class="daily-card state-' +
-        st +
-        '" id="dailyCard"><div class="daily-eyebrow">Ежедневное · ' +
-        dateOf(d.idx + 1) +
-        '</div><div class="daily-name">' +
-        esc(d.title || "Ежедневное задание") +
-        '</div><div class="daily-req">' +
-        esc(d.body || "Описание появится позже.") +
-        '</div><div class="daily-bottom"><span>+' +
-        num(d.pts) +
-        ' баллов</span><span class="daily-status">' +
-        STATUS[st] +
-        "</span></div></article>" +
-        '<p class="daily-total">Баллы за ежедневные: <b>' +
-        num(S.dailyScore) +
-        " / " +
-        num(S.dailyMax) +
-        "</b></p>";
-    }
-    wrap.innerHTML = h;
-    const c = $("#dailyCard", wrap);
-    if (c) c.onclick = () => openTask(d.id);
+      "</p>";
   }
+  wrap.innerHTML = h;
+  const c = $("#dailyCard", wrap);
+  if (c)
+    c.onclick = (e) => {
+      if (e.target.closest("a")) return;
+      openTask(d.id);
+    };
+}
 
   function renderRewards() {
     const wrap = $("#rewardsWrap");
@@ -1446,7 +1459,7 @@
     const shown = buffed && pb != null ? pb : t.pts;
     return (
       '<div class="modal-points">' +
-      (t.daily ? "награда: +" : "баллы: ") +
+      "баллы: " +
       "<b>" +
       num(shown) +
       "</b>" +
@@ -1487,7 +1500,7 @@
     body.innerHTML =
       headHtml(t) +
       '<p class="lore-text modal-req">' +
-      esc(t.req) +
+      rich(t.req) +
       "</p>" +
       extrasHtml(t) +
       pointsHtml(t) +
@@ -1760,7 +1773,7 @@
     $("#taskModalBody").innerHTML =
       headHtml(t) +
       '<p class="lore-text modal-req">' +
-      esc(t.req) +
+      rich(t.req) +
       "</p>" +
       extrasHtml(t) +
       pointsHtml(t) +
