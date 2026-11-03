@@ -786,6 +786,8 @@
   const round1 = (n) => Math.round(n * 10) / 10;
   const num = (n) => String(round1(Number(n) || 0)).replace(".", ",");
   const pad2 = (n) => (n < 10 ? "0" : "") + n;
+  const wordCount = (s) => (String(s || "").match(/[\p{L}\p{N}]+(?:[-'’][\p{L}\p{N}]+)*/gu) || []).length;
+
   function dateOf(day) {
     const d = new Date(EVENT_START);
     d.setDate(d.getDate() + day - 1);
@@ -2074,7 +2076,7 @@ function renderDaily() {
       esc(s.tname) +
       "</h3></div></div>" +
       '<p class="lore-text modal-req">' +
-      esc(s.treq) +
+      rich(s.treq) +
       "</p>" +
       '<div class="report-meta"><span><b>Кто:</b> ' +
       esc(s.uname) +
@@ -2094,9 +2096,14 @@ function renderDaily() {
       (consentOf(s)
         ? '<p class="status-note approved">Автор разрешил использовать работу в блоге</p>'
         : "") +
-      '<p class="lore-text">' +
-      (stripConsent(s.answer) ? esc(stripConsent(s.answer)) : "<i>без текста</i>") +
-      "</p>" +
+      (stripConsent(s.answer)
+        ? '<div class="report-answer-head"><span>Ответ</span><span class="report-words">слов: <b>' +
+          wordCount(stripConsent(s.answer)) +
+          "</b></span></div>" +
+          '<p class="lore-text report-answer">' +
+          esc(stripConsent(s.answer)) +
+          "</p>"
+        : '<p class="lore-text"><i>без текста</i></p>') +
       acts;
     zoomable($("#reportModalBody"));
     const decide = async (ok) => {

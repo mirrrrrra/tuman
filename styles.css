@@ -4405,3 +4405,32 @@ html.embed .wrap {
   font-weight: 600;
   letter-spacing: 0.08em;
 }
+
+.report-answer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font: 10px "PT Mono", monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--moss);
+}
+.report-words {
+  padding: 3px 10px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.report-words b {
+  color: var(--gold);
+  font-weight: 400;
+}
+.report-answer {
+  white-space: pre-line;
+  color: var(--text);
+}
