@@ -1257,7 +1257,7 @@ function renderDaily() {
     h =
       '<article class="daily-card daily-big state-' +
       st +
-      '" id="dailyCard"><div class="daily-eyebrow">Ежедневное · ' +
+      '" id="dailyCard"><div class="daily-eyebrow">Ежедневное задание · ' +
       dateOf(d.idx + 1) +
       '</div><div class="daily-name">' +
       esc(d.title || "Ежедневное задание") +
@@ -1428,7 +1428,7 @@ function renderDaily() {
         req: d.body || "Описание появится позже.",
         pts: d.pts,
         images: [],
-        eyebrow: "Ежедневное · " + dateOf(d.idx + 1),
+        eyebrow: "Ежедневное задание · " + dateOf(d.idx + 1),
       };
     return null;
   }
