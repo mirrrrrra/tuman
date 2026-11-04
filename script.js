@@ -2018,6 +2018,11 @@ function renderDaily() {
       };
       fr.appendChild(b);
     });
+    const addBtn = document.createElement("button");
+    addBtn.className = "adm-btn gold";
+    addBtn.textContent = "+ Отчёт за участника";
+    addBtn.onclick = openProxyReport;
+    fr.appendChild(addBtn);
     p.appendChild(fr);
     const res = await rpc("app_admin_reports", {
       p_token: session.token,
@@ -2061,6 +2066,162 @@ function renderDaily() {
       card.appendChild(row);
     });
     p.appendChild(card);
+  }
+
+  async function openProxyReport() {
+    const res = await rpc("app_admin_list", { p_token: session.token });
+    if (res.error || !res.data) return toast("Не удалось загрузить участников");
+    const users = (res.data.users || [])
+      .filter((u) => u.isAdmin || u.approved)
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    const tasks = S.tasks.slice().sort((a, b) => a.layer - b.layer);
+    const dres = await rpc("app_admin_daily_get", { p_token: session.token });
+    if (dres.data && dres.data.items)
+      dres.data.items.forEach((c) =>
+        tasks.push({
+          id: "daily-" + c.idx,
+          name: "Ежедневное " + dateOf(c.idx + 1) + ": " + (c.title || ""),
+          layer: 99,
+        }),
+      );
+
+    const draft = {
+      user: "",
+      task: tasks[0] ? tasks[0].id : "",
+      answer: "",
+      consent: false,
+      approve: true,
+      items: [],
+    };
+
+    const collect = () => {
+      const g = (id) => $("#" + id);
+      if (g("pxUser")) draft.user = g("pxUser").value;
+      if (g("pxTask")) draft.task = g("pxTask").value;
+      if (g("modalAnswer")) draft.answer = g("modalAnswer").value;
+      if (g("modalConsent")) draft.consent = g("modalConsent").checked;
+      if (g("pxApprove")) draft.approve = g("pxApprove").checked;
+    };
+
+    const paint = () => {
+      $("#reportModalBody").innerHTML =
+        '<div class="modal-head"><div><div class="modal-eyebrow">Ответственные</div>' +
+        '<h3 class="modal-title">Отчёт за участника</h3></div></div>' +
+        '<div class="field"><label for="pxUser">Участник (ID или имя)</label>' +
+        '<input id="pxUser" list="pxUsers" autocomplete="off" placeholder=" " value="' +
+        esc(draft.user) +
+        '"><datalist id="pxUsers">' +
+        users
+          .map(
+            (u) =>
+              '<option value="' +
+              esc(u.id + " · " + (u.name || "")) +
+              '"></option>',
+          )
+          .join("") +
+        "</datalist></div>" +
+        '<div class="field"><label for="pxTask">Задание</label>' +
+        '<select id="pxTask" class="roster-text">' +
+        [
+          ["Задания", tasks.filter((t) => t.layer !== 99)],
+          ["Ежедневные", tasks.filter((t) => t.layer === 99)],
+        ]
+          .map(
+            ([label, list]) =>
+              '<optgroup label="' +
+              label +
+              '">' +
+              list
+                .map(
+                  (t) =>
+                    '<option value="' +
+                    esc(t.id) +
+                    '"' +
+                    (t.id === draft.task ? " selected" : "") +
+                    ">" +
+                    esc(t.name) +
+                    "</option>",
+                )
+                .join("") +
+              "</optgroup>",
+          )
+          .join("") +
+        "</select></div>" +
+        '<div class="field"><label for="modalAnswer">Ответ</label>' +
+        '<textarea id="modalAnswer" rows="5" placeholder=" ">' +
+        esc(draft.answer) +
+        "</textarea></div>" +
+        '<div class="field"><label>Изображение / скриншоты</label>' +
+        uploadBlock(draft.items) +
+        "</div>" +
+        '<label class="consent"><input type="checkbox" id="modalConsent"' +
+        (draft.consent ? " checked" : "") +
+        "><span>Автор разрешил показать работу в блоге</span></label>" +
+        '<label class="consent"><input type="checkbox" id="pxApprove"' +
+        (draft.approve ? " checked" : "") +
+        "><span>Сразу принять (иначе уйдёт на проверку)</span></label>" +
+        '<button class="btn btn-primary" id="pxSend">Добавить</button>';
+      zoomable($("#reportModalBody"));
+      bindUpload(draft.items, () => {
+        collect();
+        paint();
+      });
+      $("#pxSend").onclick = send;
+    };
+
+    const send = async () => {
+      collect();
+      const m = /^\s*(\d+)/.exec(draft.user);
+      const u = m && users.find((x) => String(x.id) === m[1]);
+      if (!u) return toast("Выбери участника из списка");
+      const answer = draft.answer.trim();
+      if (!answer && !draft.items.length)
+        return toast("Добавь ответ или изображение");
+      const btn = $("#pxSend");
+      btn.disabled = true;
+      const urls = [];
+      try {
+        for (let i = 0; i < draft.items.length; i++) {
+          if (!draft.items[i].url) {
+            toast("Загружаю фото " + (i + 1) + " / " + draft.items.length + "…");
+            draft.items[i].url = await uploadImage(draft.items[i].file);
+          }
+          urls.push(draft.items[i].url);
+        }
+      } catch (e) {
+        console.error(e);
+        btn.disabled = false;
+        return toast("Не удалось загрузить фото");
+      }
+      const r = await rpc("app_admin_submit", {
+        p_token: session.token,
+        p_uid: String(u.id),
+        p_task: draft.task,
+        p_answer: answer,
+        p_image: urls[0] || null,
+        p_images: urls,
+        p_consent: draft.consent,
+        p_approve: draft.approve,
+      });
+      btn.disabled = false;
+      if (r.error)
+        return toast(
+          {
+            forbidden: "Нет доступа",
+            no_user: "Участник не найден",
+            no_task: "Задание не найдено",
+            status: "У участника это задание уже принято",
+            empty: "Добавь ответ или изображение",
+            too_many: "Максимум 3 фото",
+          }[r.error] || "Не получилось",
+        );
+      toast("Отчёт добавлен для " + (u.name || u.id));
+      closeReport();
+      renderMod();
+    };
+
+    paint();
+    $("#reportModalBackdrop").classList.add("open");
   }
 
   function openReport(s) {
