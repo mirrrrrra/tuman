@@ -842,10 +842,14 @@
     const p = PATHS[me.path];
     $("#chipPath").textContent = "Путь: " + (p ? p.name : "—");
     $("#chipBuff").textContent = "Бафф: " + (p ? p.buffName : "—");
-    $("#personalScore").textContent = num(S.score);
-    $("#levelPoints").textContent = S.doneCount + " / " + TOTAL_TASKS;
-    $("#levelFill").style.width =
-      Math.min(100, (S.doneCount / TOTAL_TASKS) * 100) + "%";
+$("#personalScore").textContent = num(S.score + (S.dailyScore || 0));
+const dailyApproved = Object.keys(S.progress || {}).filter(
+  (k) => k.indexOf("daily-") === 0 && S.progress[k].status === "approved",
+).length;
+const taskDone = S.doneCount - dailyApproved;
+$("#levelPoints").textContent = taskDone + " / " + TOTAL_TASKS;
+$("#levelFill").style.width =
+  Math.min(100, (taskDone / TOTAL_TASKS) * 100) + "%";
 
     $("#modTabBtn").hidden = !me.isAdmin;
     if (!me.isAdmin && tab === "mod") switchTab("tasks");
