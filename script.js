@@ -76,6 +76,47 @@
     toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
   }
 
+  let askEl = null;
+  function askConfirm(o) {
+    return new Promise((resolve) => {
+      if (!askEl) {
+        askEl = document.createElement("div");
+        askEl.className = "ask-backdrop";
+        document.body.appendChild(askEl);
+      }
+      askEl.innerHTML =
+        '<div class="ask-box" role="dialog" aria-modal="true">' +
+        '<h3 class="ask-title">' + escapeHtml(o.title || "Подтвердите") + "</h3>" +
+        '<div class="ask-line"></div>' +
+        '<p class="ask-text">' + escapeHtml(o.text || "") + "</p>" +
+        '<div class="ask-btns">' +
+        '<button class="btn" data-ask="0">' + escapeHtml(o.cancel || "Отмена") + "</button>" +
+        '<button class="btn ' + (o.danger ? "btn-danger" : "btn-primary") +
+        '" data-ask="1">' + escapeHtml(o.ok || "Да") + "</button></div></div>";
+      const onKey = (e) => {
+        if (e.key !== "Escape") return;
+        e.preventDefault();
+        e.stopPropagation();
+        close(false);
+      };
+      const close = (v) => {
+        askEl.classList.remove("open");
+        document.removeEventListener("keydown", onKey, true);
+        askEl.onclick = null;
+        resolve(v);
+      };
+      document.addEventListener("keydown", onKey, true);
+      askEl.onclick = (e) => {
+        if (e.target === askEl) close(false);
+        const b = e.target.closest("[data-ask]");
+        if (b) close(b.dataset.ask === "1");
+      };
+      askEl.classList.add("open");
+      const first = askEl.querySelector('[data-ask="0"]');
+      if (first) first.focus();
+    });
+  }
+
   async function rpc(name, args) {
     let res;
     try {
@@ -125,26 +166,23 @@
     return rows;
   }
 
-  async function saveRoster(text) {
-    const rows = parseRoster(text);
-    if (!rows.length) {
-      toast("Не нашла строк. Скопируй таблицу целиком");
-      return false;
-    }
-    for (let i = 0; i < rows.length; i += 500) {
-      const res = await rpc("app_roster_save", {
-        p_token: session.token,
-        p_rows: rows.slice(i, i + 500),
-      });
-      if (res.error) {
-        toast(res.error === "forbidden" ? "Нет доступа" : "Не сохранилось");
-        return false;
-      }
-    }
-    toast("Сохранено: " + rows.length);
-    return true;
+async function saveRoster(text) {
+  const rows = parseRoster(text);
+  if (!rows.length) {
+    toast("Не нашла строк. Скопируй таблицу целиком");
+    return false;
   }
-
+  const res = await rpc("app_roster_save", {
+    p_token: session.token,
+    p_rows: rows,
+  });
+  if (res.error) {
+    toast(res.error === "forbidden" ? "Нет доступа" : "Не сохранилось");
+    return false;
+  }
+  toast("Сохранено: " + rows.length);
+  return true;
+}
   async function refreshAdmin(force) {
     if (!session.token) return;
     const res = await rpc("app_admin_list", { p_token: session.token });
@@ -518,19 +556,22 @@
       if (isOwner(uid)) return toast("Удалить нельзя");
       if (me && me.id === uid) return toast("Нельзя удалить себя");
       if (
-        !confirm(
-          "Удалить игрока «" + (u.name || uid) + "»? Действие необратимо.",
-        )
+        !(await askConfirm({
+          title: "Удалить игрока?",
+          text: "«" + (u.name || uid) + "» будет удалён насовсем. Действие необратимо.",
+          ok: "Удалить",
+          danger: true,
+        }))
       )
         return;
     }
     if (act === "resetpin") {
       if (
-        !confirm(
-          "Сбросить пароль игроку «" +
-            (u.name || uid) +
-            "»? Он введёт новый при следующем входе.",
-        )
+        !(await askConfirm({
+          title: "Сбросить пароль?",
+          text: "«" + (u.name || uid) + "» введёт новый пароль при следующем входе.",
+          ok: "Сбросить",
+        }))
       )
         return;
     }
@@ -545,6 +586,8 @@
     toast(ADMIN_DONE[act]);
     await refreshAdmin(true);
   }
+
+  const peopleOpen = new Set();
 
   function adminPeople(wrap) {
     const keepText = $("#rosterText") ? $("#rosterText").value : "";
@@ -584,30 +627,6 @@
         : "";
     const promote = (u) =>
       canManage ? btn("promote", u.id, "Дать права", "gold") : "";
-
-    function group(title, list, emptyText, actions) {
-      let h =
-        '<section class="adm-card"><h3 class="adm-title">' +
-        escapeHtml(title) +
-        '<span class="adm-count">' +
-        list.length +
-        '</span></h3><div class="adm-line"></div>';
-      if (!list.length)
-        h += '<p class="adm-empty">' + escapeHtml(emptyText) + "</p>";
-      list.forEach((u) => {
-        h +=
-          '<div class="adm-row"><div class="adm-who"><span class="adm-name">' +
-          escapeHtml(u.name || "—") +
-          '</span><span class="adm-id">' +
-          escapeHtml(u.id) +
-          "</span></div>" +
-          '<div class="adm-acts">' +
-          actions(u) +
-          "</div></div>";
-      });
-      return h + "</section>";
-    }
-
     const adminActions = (u) =>
       (isOwner(u.id)
         ? '<span class="adm-id">мяу</span>'
@@ -619,12 +638,42 @@
     const memberActions = (u) =>
       u.isAdmin ? adminActions(u) : promote(u) + reset(u) + del(u);
 
+    const row = (u, actions, pick) =>
+      '<div class="pp-row' +
+      (pick ? " pickable" : "") +
+      '"' +
+      (pick ? ' data-pick="' + escapeHtml(u.id) + '"' : "") +
+      '><span class="pp-who"><span class="pp-name">' +
+      escapeHtml(u.name || "—") +
+      '</span><span class="pp-id">' +
+      escapeHtml(u.id) +
+      "</span></span>" +
+      (actions ? '<span class="adm-acts">' + actions + "</span>" : "") +
+      "</div>";
+
+    const fold = (key, title, list, empty) =>
+      '<details class="pp-fold" data-key="' +
+      key +
+      '"' +
+      (peopleOpen.has(key) ? " open" : "") +
+      '><summary><span class="pp-sum-title">' +
+      escapeHtml(title) +
+      '</span><span class="adm-count">' +
+      list.length +
+      '</span></summary><div class="pp-list">' +
+      (list.length
+        ? list.map((u) => row(u, "", canManage)).join("")
+        : '<p class="adm-empty">' + escapeHtml(empty) + "</p>") +
+      "</div></details>";
+
     let html =
       '<div class="adm-stats">' +
       '<div class="adm-stat"><b>' +
       all.length +
       "</b><span>всего</span></div>" +
-      '<div class="adm-stat"><b>' +
+      '<div class="adm-stat' +
+      (pending.length ? " hot" : "") +
+      '"><b>' +
       pending.length +
       "</b><span>ожидают</span></div>" +
       '<div class="adm-stat"><b>' +
@@ -634,29 +683,48 @@
       admins.length +
       "</b><span>ответственных</span></div></div>";
 
-    html += group("Ожидают", pending, "Новых заявок нет.", (u) =>
-      btn("approve", u.id, "Подтвердить", "gold"),
-    );
+    html +=
+      '<section class="adm-card' +
+      (pending.length ? " pp-hot" : "") +
+      '"><h3 class="adm-title">Ожидают<span class="adm-count">' +
+      pending.length +
+      '</span></h3><div class="adm-line"></div>' +
+      (pending.length
+        ? '<div class="pp-list">' +
+          pending
+            .map((u) => row(u, btn("approve", u.id, "Подтвердить", "gold")))
+            .join("") +
+          "</div>"
+        : '<p class="adm-empty">Новых заявок нет.</p>') +
+      "</section>";
+
+    if (canManage) {
+      html +=
+        '<section class="adm-card"><h3 class="adm-title">Управление</h3><div class="adm-line"></div>' +
+        '<p class="adm-hint">Найди игрока по ID или имени (или нажми на него в списках ниже):<br>• <b>Удалить</b>: убрать игрока насовсем<br>• <b>Сбросить пароль</b>: игрок задаст новый при входе<br>• <b>Дать права / Снять права</b>: сделать ответственным или забрать роль</p>' +
+        '<input id="manageInput" class="roster-text" type="text" autocomplete="off" placeholder="ID или имя игрока" /><div id="manageResults"></div></section>';
+    }
 
     html +=
-      '<section class="adm-card"><h3 class="adm-title">Управление</h3><div class="adm-line"></div>' +
-      '<p class="adm-hint">Введи ID или имя и нажми нужное действие:<br>• <b>Удалить</b>: убрать игрока насовсем<br>• <b>Сбросить пароль</b>: игрок задаст новый при входе' +
-      (canManage
-        ? "<br>• <b>Дать права / Снять права</b>: сделать ответственным или забрать роль"
-        : "") +
-      '</p><input id="manageInput" class="roster-text" type="text" autocomplete="off" placeholder="ID или имя игрока" /><div id="manageResults"></div></section>';
-
-    ["ratniki", "kudesniki", "likotvorcy"].forEach((key) => {
-      html += group(
-        PATHS[key].name,
-        pathMembers.filter((u) => u.path === key),
-        "Пока никого.",
-        () => "",
-      );
-    });
-    const noPath = members.filter((u) => !PATHS[u.path]);
-    if (noPath.length) html += group("Тест не пройден", noPath, "", () => "");
-    html += group("Ответственные", admins, "Пока никого.", () => "");
+      '<section class="adm-card"><h3 class="adm-title">Все участники</h3><div class="adm-line"></div><div class="pp-folds">' +
+      ["ratniki", "kudesniki", "likotvorcy"]
+        .map((key) =>
+          fold(
+            key,
+            PATHS[key].name,
+            pathMembers.filter((u) => u.path === key),
+            "Пока никого.",
+          ),
+        )
+        .join("") +
+      fold(
+        "nopath",
+        "Тест не пройден",
+        members.filter((u) => !PATHS[u.path]),
+        "Все прошли тест.",
+      ) +
+      fold("admins", "Ответственные", admins, "Пока никого.") +
+      "</div></section>";
 
     html +=
       '<section class="adm-card"><h3 class="adm-title">Список Морёвки<span class="adm-count">' +
@@ -677,9 +745,16 @@
     $all("[data-act]", wrap).forEach((b) =>
       b.addEventListener("click", () => adminAct(b.dataset.act, b.dataset.uid)),
     );
+    $all(".pp-fold", wrap).forEach((d) =>
+      d.addEventListener("toggle", () => {
+        if (d.open) peopleOpen.add(d.dataset.key);
+        else peopleOpen.delete(d.dataset.key);
+      }),
+    );
 
     const mi = $("#manageInput");
     const mr = $("#manageResults");
+    if (!mi) return;
     const showManage = () => {
       const q = mi.value.trim().toLowerCase();
       if (!q) {
@@ -697,18 +772,10 @@
         mr.innerHTML = '<p class="adm-empty">Никого не нашла.</p>';
         return;
       }
-      mr.innerHTML = found
-        .map(
-          (u) =>
-            '<div class="adm-row compact"><div class="adm-who"><span class="adm-name">' +
-            escapeHtml(u.name || "—") +
-            '</span><span class="adm-id">' +
-            escapeHtml(u.id) +
-            '</span></div><div class="adm-acts">' +
-            memberActions(u) +
-            "</div></div>",
-        )
-        .join("");
+      mr.innerHTML =
+        '<div class="pp-list">' +
+        found.map((u) => row(u, memberActions(u))).join("") +
+        "</div>";
       $all("[data-act]", mr).forEach((b) =>
         b.addEventListener("click", () =>
           adminAct(b.dataset.act, b.dataset.uid),
@@ -719,6 +786,13 @@
     mi.value = keepQuery;
     showManage();
     if (hadFocus) mi.focus();
+    $all("[data-pick]", wrap).forEach((r) =>
+      r.addEventListener("click", () => {
+        mi.value = r.dataset.pick;
+        showManage();
+        mi.scrollIntoView({ block: "center", behavior: "smooth" });
+      }),
+    );
   }
 
   const ROOT = "1707227";
@@ -740,6 +814,19 @@
         ? [s.image]
         : [];
   const consentOf = (s) => s.consent === true || hasConsent(s.answer);
+  const FINAL_TAG = "[[final]]";
+  const isFinal = (r) => String(r || "").includes(FINAL_TAG);
+  const SKIP_TAG = "[[skip]]";
+  const isSkip = (r) => isFinal(r) && String(r || "").includes(SKIP_TAG);
+  const stripFinal = (r) =>
+    String(r || "")
+      .replace(FINAL_TAG, "")
+      .replace(SKIP_TAG, "")
+      .trim();
+  const stLabel = (id) =>
+    stOf(id) === "rejected" && S.progress[id] && isSkip(S.progress[id].reason)
+      ? "пропущено"
+      : STATUS[stOf(id)];
   const EVENT_DAYS = 7;
   const ROWS_AHEAD = 1;
   const CHAIN_UNLOCK = true;
@@ -839,6 +926,9 @@
 
     $("#dashName").textContent = me.name;
     $("#dayNum").textContent = S.day;
+    const isRoot = me.id === ROOT;
+    $("#dayMinus").hidden = !isRoot;
+    $("#dayPlus").hidden = !isRoot;
     const p = PATHS[me.path];
     $("#chipPath").textContent = "Путь: " + (p ? p.name : "—");
     $("#chipBuff").textContent = "Бафф: " + (p ? p.buffName : "—");
@@ -948,7 +1038,10 @@ $("#levelFill").style.width =
     const dep = tree.depends[id] || [];
     if (!dep.length) return true;
     return dep.some(
-      (pid) => stOf(pid) === "approved" || stOf(pid) === "pending",
+      (pid) =>
+        stOf(pid) === "approved" ||
+        stOf(pid) === "pending" ||
+        (stOf(pid) === "rejected" && isFinal(S.progress[pid].reason)),
     );
   }
 
@@ -1007,7 +1100,6 @@ const kindOf = (id, li) => {
   if (isAdm && t) return null;
   if (!t) return dayLocked ? "day" : "soon";
       if (st === "none" && dayLocked) return "day";
-      if (CHAIN_UNLOCK && !isUnlocked(id)) return "chain";
       return null;
     };
     const lockInfo = (kind, li) => {
@@ -1141,7 +1233,7 @@ let vis = slots.filter(
               '<div class="tnc-bottom"><span class="tnc-pts">баллы: <b>' +
               num(t.pts) +
               '</b></span><span class="tnc-status">' +
-              STATUS[st] +
+              stLabel(id) +
               "</span></div></div>";
           }
           h += wrapNode(p.left, y + p.off, node);
@@ -1284,7 +1376,9 @@ function renderDaily() {
         : st === "approved"
           ? "Задание принято!"
           : st === "rejected"
-            ? "Задание отклонено. Открой его и отправь заново."
+            ? isFinal((S.progress[d.id] || {}).reason)
+              ? "Задание отклонено окончательно."
+              : "Задание отклонено. Открой его и отправь заново."
             : "";
     h =
       counter +
@@ -1506,6 +1600,41 @@ function renderDaily() {
       )
       .join("");
 
+  const skipBtn = (t) =>
+    me && !me.isAdmin && !t.daily
+      ? '<button class="btn btn-skip" id="btnSkip">Пропустить задание</button>'
+      : "";
+  function bindSkip(t) {
+    const b = $("#btnSkip");
+    if (b) b.onclick = () => skipTask(t);
+  }
+  async function skipTask(t) {
+    if (
+      !(await askConfirm({
+        title: "Пропустить задание?",
+        text: "«" + t.name + "»: вернуться к нему будет нельзя, баллы за него не начислятся.",
+        ok: "Пропустить",
+        cancel: "Не пропускать",
+        danger: true,
+      }))
+    )
+      return;
+    const res = await rpc("app_skip", {
+      p_token: session.token,
+      p_task: t.id,
+    });
+    if (res.error)
+      return toast(
+        {
+          locked: "Задание ещё закрыто",
+          status: "Это задание уже нельзя пропустить",
+        }[res.error] || "Не получилось, проверь интернет",
+      );
+    toast("Задание пропущено");
+    await loadState(true);
+    closeModal();
+  }
+
   function renderModal() {
     if (!modal) return;
     const t = taskObj(modal.id);
@@ -1535,9 +1664,19 @@ function renderDaily() {
       "</p>" +
       extrasHtml(t) +
       pointsHtml(t) +
-      '<button class="btn btn-primary" id="btnGo">Перейти к заданию</button>';
+      (stOf(t.id) === "rejected" && isFinal((S.progress[t.id] || {}).reason)
+        ? '<p class="status-note rejected">' +
+          (isSkip(S.progress[t.id].reason)
+            ? "Вы пропустили это задание. Вернуться к нему нельзя."
+            : "Задание отклонено окончательно.") +
+          "</p>"
+        : isUnlocked(t.id)
+          ? '<button class="btn btn-primary" id="btnGo">Перейти к заданию</button>' +
+            skipBtn(t)
+          : '<p class="status-note">Сначала сдайте задание выше, тогда можно будет пройти это.</p>');
     zoomable(body);
-    $("#btnGo").onclick = () => openGame(t);
+    if ($("#btnGo")) $("#btnGo").onclick = () => openGame(t);
+    bindSkip(t);
   }
 
   function flushGameSave() {
@@ -1789,17 +1928,30 @@ function renderDaily() {
         '<p class="status-note approved">Задание принято. Получено баллов: <b>' +
         num(t.pts) +
         "</b></p>";
+    else if (status === "rejected" && isSkip(st.reason))
+      area =
+        '<p class="status-note rejected">Вы пропустили это задание. Вернуться к нему нельзя, баллы не начисляются.</p>';
+    else if (status === "rejected" && isFinal(st.reason))
+      area =
+        '<p class="status-note rejected">Отклонено окончательно: ' +
+        esc(stripFinal(st.reason) || "без указания причины") +
+        ". Отправить заново нельзя.</p>";
     else if (status === "rejected")
       area =
         '<p class="status-note rejected">Отклонено: ' +
         esc(st.reason || "без указания причины") +
         "</p>" +
         form() +
-        '<button class="btn btn-primary" id="btnSubmitTask">Отправить заново</button>';
+        '<button class="btn btn-primary" id="btnSubmitTask">Отправить заново</button>' +
+        skipBtn(t);
+    else if (!isUnlocked(t.id))
+      area =
+        '<p class="status-note">Отправить отчёт можно будет после выполнения предыдущего задания</p>';
     else
       area =
         form() +
-        '<button class="btn btn-primary" id="btnSubmitTask">Отправить</button>';
+        '<button class="btn btn-primary" id="btnSubmitTask">Отправить</button>' +
+        skipBtn(t);
 
     $("#taskModalBody").innerHTML =
       headHtml(t) +
@@ -1819,6 +1971,7 @@ function renderDaily() {
     });
     const b = $("#btnSubmitTask");
     if (b) b.onclick = () => submitReport(t, b);
+    bindSkip(t);
   }
     async function submitReport(t, btn) {
     const answer = ($("#modalAnswer") ? $("#modalAnswer").value : "").trim();
@@ -1860,6 +2013,7 @@ function renderDaily() {
           status: "Отчёт уже отправлен",
           empty: "Добавь ответ или изображение",
           too_many: "Максимум 3 фото",
+          final: "Это задание закрыто окончательно",
         }[res.error] || "Не отправилось, проверь интернет",
       );
       return;
@@ -1885,21 +2039,28 @@ function renderDaily() {
     repFilter = "pending",
     lastRepJson = "",
     modStamp = 0;
+  let repTask = "",
+    repQuery = "",
+    repSort = "new";
   const MOD_TABS = [
     ["reports", "Отчёты"],
     ["tasks", "Задания"],
     ["people", "Участники"],
+    ["scores", "Баллы"],
     ["daily", "Ежедневные"],
     ["preds", "Предсказания"],
     ["allowed", "Разрешённые"],
     ["games", "Игры"],
   ];
 
+  const OWNER_TABS = ["tasks", "daily", "games"];
   function renderMod() {
     const stamp = ++modStamp;
     const bar = $(".mod-subtabs");
     bar.innerHTML = "";
-    MOD_TABS.forEach(([k, l]) => {
+    const owner = !!(me && isOwner(me.id));
+    if (!owner && OWNER_TABS.includes(modTab)) modTab = "reports";
+    MOD_TABS.filter(([k]) => owner || !OWNER_TABS.includes(k)).forEach(([k, l]) => {
       const b = document.createElement("button");
       b.className = "adm-btn" + (modTab === k ? " gold" : "");
       b.textContent = l;
@@ -1912,23 +2073,12 @@ function renderDaily() {
     });
     const p = $("#adminPanel");
     p.innerHTML = "";
-    if (me && me.id === ROOT) {
-      const c = document.createElement("section");
-      c.className = "adm-card";
-      c.innerHTML =
-        '<h3 class="adm-title">День события</h3><div class="adm-line"></div>' +
-        '<div class="adm-acts day-ctl"><button class="adm-btn" id="btnDayMinus" type="button">−</button>' +
-        '<span class="day-val mono" id="dayVal">' +
-        (S ? S.day : "") +
-        '</span><button class="adm-btn" id="btnDayPlus" type="button">+</button></div>';
-      p.appendChild(c);
-      $("#btnDayMinus", c).onclick = () => bumpDay(-1);
-      $("#btnDayPlus", c).onclick = () => bumpDay(1);
-    }
+
     const f = {
       reports: adminReports,
       tasks: adminTasks,
       people: adminPeople,
+      scores: adminScores,
       daily: adminDaily,
       preds: adminPreds,
       allowed: adminAllowed,
@@ -2036,36 +2186,136 @@ function renderDaily() {
       p.appendChild(card);
       return;
     }
-    const items = res.data.items || [];
+    const items = (res.data.items || []).filter((s) => !isSkip(s.reason));
     lastRepJson = JSON.stringify(items);
-    card.innerHTML =
-      '<h3 class="adm-title">Отчёты<span class="adm-count">' +
-      items.length +
-      '</span></h3><div class="adm-line"></div>' +
-      (items.length ? "" : '<p class="adm-empty">Здесь пока пусто.</p>');
+    const taskOrder = (id) => {
+      const i = S ? S.tasks.findIndex((x) => x.id === id) : -1;
+      if (i >= 0) return S.tasks[i].layer * 100 + i;
+      if (String(id).indexOf("daily-") === 0)
+        return 10000 + (Number(String(id).slice(6)) || 0);
+      return 99999;
+    };
+    const tmap = {};
     items.forEach((s) => {
-      const row = document.createElement("div");
-      row.className = "adm-row adm-click";
-      const when = s.at ? new Date(s.at).toLocaleString("ru-RU") : "—";
-      row.innerHTML =
-        '<div class="adm-who"><span class="adm-name">' +
-        esc(s.uname) +
-        " · ID " +
-        esc(s.uid) +
-        '</span><span class="adm-id">' +
-        esc(s.tname) +
-        " · " +
-        when +
-        (consentOf(s) ? " · ✓ блог" : "") +
-        '</span></div><div class="adm-acts"><span class="adm-tag ' +
-        s.status +
-        '">' +
-        STATUS[s.status] +
-        "</span></div>";
-      row.onclick = () => openReport(s);
-      card.appendChild(row);
+      if (!tmap[s.task]) tmap[s.task] = { name: s.tname, n: 0 };
+      tmap[s.task].n++;
     });
+    const taskIds = Object.keys(tmap).sort(
+      (a, b) => taskOrder(a) - taskOrder(b),
+    );
+    if (repTask && !tmap[repTask]) repTask = "";
+
+    card.innerHTML =
+      '<h3 class="adm-title">Отчёты<span class="adm-count" id="repCount">0</span></h3><div class="adm-line"></div>' +
+      '<div class="rep-tools">' +
+      '<label class="rep-field"><span class="rep-lbl">Задание</span>' +
+      '<select class="rep-ctl" id="repTaskSel"><option value="">Все задания</option>' +
+      taskIds
+        .map(
+          (id) =>
+            '<option value="' +
+            esc(id) +
+            '"' +
+            (id === repTask ? " selected" : "") +
+            ">" +
+            esc(tmap[id].name) +
+            " (" +
+            tmap[id].n +
+            ")</option>",
+        )
+        .join("") +
+      "</select></label>" +
+      '<label class="rep-field"><span class="rep-lbl">Сортировка</span>' +
+      '<select class="rep-ctl" id="repSortSel">' +
+      [
+        ["new", "Сначала новые"],
+        ["old", "Сначала старые"],
+        ["task", "По заданиям"],
+        ["user", "По участникам (А–Я)"],
+      ]
+        .map(
+          ([k, l]) =>
+            '<option value="' +
+            k +
+            '"' +
+            (k === repSort ? " selected" : "") +
+            ">" +
+            l +
+            "</option>",
+        )
+        .join("") +
+      "</select></label>" +
+      '<label class="rep-field rep-search"><span class="rep-lbl">Поиск</span>' +
+      '<input class="rep-ctl" id="repSearch" type="text" autocomplete="off" placeholder="Имя, ID или задание" value="' +
+      esc(repQuery) +
+      '"></label>' +
+      '</div><div id="repList"></div>';
     p.appendChild(card);
+
+    const list = $("#repList", card);
+    const paintList = () => {
+      const q = repQuery.trim().toLowerCase();
+      const time = (s) => (s.at ? new Date(s.at).getTime() : 0);
+      const byName = (a, b) => (a.uname || "").localeCompare(b.uname || "");
+      const arr = items.filter(
+        (s) =>
+          (!repTask || s.task === repTask) &&
+          (!q ||
+            (s.uname || "").toLowerCase().includes(q) ||
+            String(s.uid).includes(q) ||
+            (s.tname || "").toLowerCase().includes(q)),
+      );
+      arr.sort((a, b) => {
+        if (repSort === "old") return time(a) - time(b);
+        if (repSort === "user") return byName(a, b) || time(b) - time(a);
+        if (repSort === "task")
+          return (
+            taskOrder(a.task) - taskOrder(b.task) ||
+            byName(a, b) ||
+            time(a) - time(b)
+          );
+        return time(b) - time(a);
+      });
+      $("#repCount", card).textContent = arr.length;
+      list.innerHTML = arr.length
+        ? ""
+        : '<p class="adm-empty">Ничего не найдено.</p>';
+      arr.forEach((s, i) => {
+        const row = document.createElement("div");
+        row.className = "adm-row adm-click";
+        const when = s.at ? new Date(s.at).toLocaleString("ru-RU") : "—";
+        row.innerHTML =
+          '<div class="adm-who"><span class="adm-name">' +
+          esc(s.uname) +
+          " · ID " +
+          esc(s.uid) +
+          '</span><span class="adm-id">' +
+          esc(s.tname) +
+          " · " +
+          when +
+          (consentOf(s) ? " · ✓ блог" : "") +
+          '</span></div><div class="adm-acts"><span class="adm-tag ' +
+          s.status +
+          '">' +
+          STATUS[s.status] +
+          "</span></div>";
+        row.onclick = () => openReportAt(arr, i);
+        list.appendChild(row);
+      });
+    };
+    $("#repTaskSel", card).onchange = (e) => {
+      repTask = e.target.value;
+      paintList();
+    };
+    $("#repSortSel", card).onchange = (e) => {
+      repSort = e.target.value;
+      paintList();
+    };
+    $("#repSearch", card).oninput = (e) => {
+      repQuery = e.target.value;
+      paintList();
+    };
+    paintList();
   }
 
   async function openProxyReport() {
@@ -2224,22 +2474,55 @@ function renderDaily() {
     $("#reportModalBackdrop").classList.add("open");
   }
 
+  let revList = [],
+    revIdx = -1,
+    revDirty = false;
+  function openReportAt(list, i) {
+    revList = list;
+    revIdx = i;
+    openReport(list[i]);
+  }
+  function stepReport(d) {
+    const j = revIdx + d;
+    if (j < 0 || j >= revList.length) return;
+    revIdx = j;
+    openReport(revList[j]);
+  }
   function openReport(s) {
     const when = s.at ? new Date(s.at).toLocaleString("ru-RU") : "—";
+    const nav =
+      revList.length > 1 && revList[revIdx] === s
+        ? '<div class="rev-nav"><button class="adm-btn" id="revPrev"' +
+          (revIdx <= 0 ? " disabled" : "") +
+          '>‹</button><span class="rev-pos">' +
+          (revIdx + 1) +
+          " / " +
+          revList.length +
+          '</span><button class="adm-btn" id="revNext"' +
+          (revIdx >= revList.length - 1 ? " disabled" : "") +
+          ">›</button></div>"
+        : "";
     const acts =
       s.status === "pending"
         ? '<div class="field"><label for="repReason">Причина (если отклоняете)</label><textarea id="repReason" rows="2" placeholder=" "></textarea></div>' +
-          '<div class="acts-row"><button class="btn btn-danger" id="repNo">Отклонить</button><button class="btn btn-primary" id="repOk">Принять</button></div>'
+          '<div class="acts-row"><button class="btn btn-danger" id="repNo">Отклонить</button><button class="btn btn-primary" id="repOk">Принять</button></div>' +
+          '<div class="acts-row"><button class="btn btn-danger btn-final" id="repFinal">Отклонить окончательно</button></div>'
         : '<p class="status-note ' +
           s.status +
           '">' +
           STATUS[s.status] +
-          (s.status === "rejected" ? ": " + esc(s.reason || "—") : "") +
-          "</p>";
+          (s.status === "rejected"
+            ? (isFinal(s.reason) ? " окончательно" : "") +
+              ": " +
+              esc(stripFinal(s.reason) || "—")
+            : "") +
+          "</p>" +
+          '<div class="acts-row"><button class="btn" id="repUndo">Вернуть на проверку</button></div>';
     $("#reportModalBody").innerHTML =
       '<div class="modal-head"><div><div class="modal-eyebrow">Отчёт</div><h3 class="modal-title">' +
       esc(s.tname) +
       "</h3></div></div>" +
+      nav +
       '<p class="lore-text modal-req">' +
       rich(s.treq) +
       "</p>" +
@@ -2271,27 +2554,85 @@ function renderDaily() {
         : '<p class="lore-text"><i>без текста</i></p>') +
       acts;
     zoomable($("#reportModalBody"));
-    const decide = async (ok) => {
-      const reason = $("#repReason") ? $("#repReason").value : "";
+    const decide = async (ok, final) => {
+      const reason = ($("#repReason") ? $("#repReason").value : "").trim();
+      const sent = final ? FINAL_TAG + reason : reason;
+      const btns = ["repOk", "repNo", "repFinal"].map((id) => $("#" + id));
+      btns.forEach((b) => b && (b.disabled = true));
       const res = await rpc("app_admin_decide", {
         p_token: session.token,
         p_uid: s.uid,
         p_task: s.task,
         p_ok: ok,
-        p_reason: reason,
+        p_reason: sent,
       });
-      if (res.error) return toast("Не получилось");
-      toast(ok ? "Принято" : "Отклонено");
-      closeReport();
-      renderMod();
+      if (res.error) {
+        btns.forEach((b) => b && (b.disabled = false));
+        return toast("Не получилось");
+      }
+      toast(ok ? "Принято" : final ? "Отклонено окончательно" : "Отклонено");
+      s.status = ok ? "approved" : "rejected";
+      s.reason = sent;
+      revDirty = true;
+      let next = -1;
+      if (revList[revIdx] === s) {
+        for (let k = revIdx + 1; k < revList.length && next < 0; k++)
+          if (revList[k].status === "pending") next = k;
+        for (let k = 0; k < revIdx && next < 0; k++)
+          if (revList[k].status === "pending") next = k;
+      }
+      if (next >= 0) {
+        revIdx = next;
+        openReport(revList[next]);
+      } else closeReport();
     };
     if ($("#repOk")) $("#repOk").onclick = () => decide(true);
     if ($("#repNo")) $("#repNo").onclick = () => decide(false);
+    if ($("#repFinal"))
+      $("#repFinal").onclick = async () => {
+        if (
+          await askConfirm({
+            title: "Отклонить окончательно?",
+            text: "Участник не сможет отправить это задание заново.",
+            ok: "Отклонить",
+            danger: true,
+          })
+        )
+          decide(false, true);
+      };
+    if ($("#repUndo"))
+      $("#repUndo").onclick = async () => {
+        if (
+          !(await askConfirm({
+            title: "Вернуть на проверку?",
+            text: "Баллы за этот отчёт снимутся.",
+            ok: "Вернуть",
+          }))
+        )
+          return;
+        const res = await rpc("app_admin_revert", {
+          p_token: session.token,
+          p_uid: s.uid,
+          p_task: s.task,
+        });
+        if (res.error) return toast("Не получилось");
+        toast("Возвращено на проверку");
+        s.status = "pending";
+        revDirty = true;
+        openReport(s);
+      };
+    if ($("#revPrev")) $("#revPrev").onclick = () => stepReport(-1);
+    if ($("#revNext")) $("#revNext").onclick = () => stepReport(1);
+    $("#reportModal").scrollTop = 0;
     $("#reportModalBackdrop").classList.add("open");
   }
   function closeReport() {
     $("#reportModalBackdrop").classList.remove("open");
     if (S && isActive("screen-dashboard")) renderAll();
+    if (revDirty) {
+      revDirty = false;
+      if (tab === "mod") renderMod();
+    }
   }
 
   async function adminTasks(p, alive) {
@@ -2388,9 +2729,7 @@ function renderDaily() {
             '<div class="tk-card" data-id="' +
             esc(t.id) +
             '">' +
-            '<div class="tk-row"><span class="adm-id">' +
-            esc(t.id) +
-            '</span><span class="adm-acts"><button class="adm-btn danger" data-a="del" type="button">Удалить</button></span></div>' +
+            '<div class="tk-row"><span></span><span class="adm-acts"><button class="adm-btn danger" data-a="del" type="button">Удалить</button></span></div>' +
             '<input class="roster-text" data-f="name" placeholder="Название" value="' +
             esc(t.name) +
             '">' +
@@ -2496,18 +2835,19 @@ function renderDaily() {
         };
       });
       $all(".tk-card [data-a=del]", wrap).forEach((b) => {
-        b.onclick = () => {
+        b.onclick = async () => {
           collect();
           const t = draft.find(
             (x) => x.id === b.closest(".tk-card").dataset.id,
           );
           if (!t) return;
           if (
-            !confirm(
-              "Удалить задание «" +
-                (t.name || t.id) +
-                "»? Отчёты по нему останутся в базе, но баллы за него перестанут считаться.",
-            )
+            !(await askConfirm({
+              title: "Удалить задание?",
+              text: "«" + (t.name || t.id) + "»: отчёты по нему останутся в базе, но баллы за него перестанут считаться.",
+              ok: "Удалить",
+              danger: true,
+            }))
           )
             return;
           draft = draft.filter((x) => x !== t);
@@ -2571,6 +2911,137 @@ function renderDaily() {
         renderMod();
       };
     };
+    paint();
+  }
+
+  const scOpen = new Set();
+  async function adminScores(p, alive) {
+    const [lr, rr, dr] = await Promise.all([
+      rpc("app_admin_list", { p_token: session.token }),
+      rpc("app_admin_reports", { p_token: session.token, p_status: "all" }),
+      rpc("app_admin_daily_get", { p_token: session.token }),
+    ]);
+    if (!alive()) return;
+    const card = document.createElement("section");
+    card.className = "adm-card";
+    if (lr.error || rr.error || !lr.data || !rr.data) {
+      card.innerHTML = '<p class="adm-empty">Не удалось загрузить.</p>';
+      p.appendChild(card);
+      return;
+    }
+    const users = (lr.data.users || []).filter((u) => u.isAdmin || u.approved);
+    const dailyPts = {};
+    ((dr.data && dr.data.items) || []).forEach((c) => {
+      if (c.pts != null) dailyPts["daily-" + c.idx] = Number(c.pts) || 0;
+    });
+    const fallbackDaily = (S && S.daily && Number(S.daily.pts)) || 0;
+    const byTask = {};
+    (S ? S.tasks : []).forEach((t) => (byTask[t.id] = t));
+
+    const stat = {};
+    users.forEach((u) => (stat[u.id] = { u, score: 0, done: 0, items: [] }));
+    (rr.data.items || []).forEach((s) => {
+      if (s.status !== "approved") return;
+      const row = stat[String(s.uid)];
+      if (!row) return;
+      const t = byTask[s.task];
+      let pts = 0;
+      if (t) {
+        const pb = t.pts_buff != null ? t.pts_buff : t.ptsBuff;
+        const buffed = BUFF_OF[row.u.path] === t.sphere;
+        pts = Number(buffed && pb != null ? pb : t.pts) || 0;
+      } else if (String(s.task).indexOf("daily-") === 0) {
+        pts = dailyPts[s.task] != null ? dailyPts[s.task] : fallbackDaily;
+      }
+      row.score += pts;
+      row.done++;
+      row.items.push({ s, pts });
+    });
+    const list = Object.values(stat).sort(
+      (a, b) =>
+        b.score - a.score || (a.u.name || "").localeCompare(b.u.name || ""),
+    );
+    const total = list.reduce((m, r) => m + r.score, 0);
+
+    card.innerHTML =
+      '<h3 class="adm-title">Баллы<span class="adm-count">' +
+      list.length +
+      '</span></h3><div class="adm-line"></div>' +
+      '<div class="rep-tools"><label class="rep-field rep-search"><span class="rep-lbl">Поиск</span>' +
+      '<input class="rep-ctl" id="scSearch" type="text" autocomplete="off" placeholder="Имя или ID"></label></div>' +
+      '<div class="pp-list" id="scList"></div>';
+    p.appendChild(card);
+
+    const box = $("#scList", card);
+    const paint = () => {
+      const q = $("#scSearch", card).value.trim().toLowerCase();
+      const rows = list.filter(
+        (r) =>
+          !q ||
+          String(r.u.id).includes(q) ||
+          (r.u.name || "").toLowerCase().includes(q),
+      );
+      box.innerHTML = rows.length
+        ? rows
+            .map((r) => {
+              const rank = list.indexOf(r) + 1;
+              const id = String(r.u.id);
+              const items = r.items.length
+                ? r.items
+                    .map(
+                      (it, i) =>
+                        '<div class="sc-item" data-u="' +
+                        esc(id) +
+                        '" data-i="' +
+                        i +
+                        '"><span class="sc-item-name">' +
+                        esc(it.s.tname) +
+                        '</span><span class="sc-item-pts">+' +
+                        num(it.pts) +
+                        "</span></div>",
+                    )
+                    .join("")
+                : '<p class="adm-empty">Принятых заданий нет.</p>';
+              return (
+                '<details class="pp-fold sc-fold" data-u="' +
+                esc(id) +
+                '"' +
+                (scOpen.has(id) ? " open" : "") +
+                '><summary><span class="sc-rank">' +
+                rank +
+                '</span><span class="pp-who"><span class="pp-name">' +
+                esc(r.u.name || "—") +
+                '</span><span class="pp-id">' +
+                esc(id) +
+                " · принято: " +
+                r.done +
+                '</span></span><span class="sc-val">' +
+                num(r.score) +
+                '</span></summary><div class="sc-items">' +
+                items +
+                "</div></details>"
+              );
+            })
+            .join("")
+        : '<p class="adm-empty">Никого не нашла.</p>';
+      $all(".sc-fold", box).forEach((d) =>
+        d.addEventListener("toggle", () => {
+          if (d.open) scOpen.add(d.dataset.u);
+          else scOpen.delete(d.dataset.u);
+        }),
+      );
+      $all(".sc-item", box).forEach((el) => {
+        el.onclick = () => {
+          const r = list.find((x) => String(x.u.id) === el.dataset.u);
+          if (r)
+            openReportAt(
+              r.items.map((x) => x.s),
+              Number(el.dataset.i),
+            );
+        };
+      });
+    };
+    $("#scSearch", card).oninput = paint;
     paint();
   }
 
@@ -2690,6 +3161,8 @@ function renderDaily() {
     await loadState(true);
   }
   function bindDash() {
+    $("#dayMinus").onclick = () => bumpDay(-1);
+    $("#dayPlus").onclick = () => bumpDay(1);
     $all(".view-tab").forEach(
       (t) => (t.onclick = () => switchTab(t.dataset.tab)),
     );
@@ -2731,6 +3204,17 @@ function renderDaily() {
         $("#imageViewer").classList.remove("open");
     };
     document.addEventListener("keydown", (e) => {
+      if (
+        (e.key === "ArrowLeft" || e.key === "ArrowRight") &&
+        $("#reportModalBackdrop").classList.contains("open") &&
+        !$("#imageViewer").classList.contains("open") &&
+        !/TEXTAREA|INPUT|SELECT/.test(
+          (document.activeElement || {}).tagName || "",
+        )
+      ) {
+        stepReport(e.key === "ArrowLeft" ? -1 : 1);
+        return;
+      }
       if (e.key !== "Escape") return;
       if ($("#imageViewer").classList.contains("open"))
         $("#imageViewer").classList.remove("open");
