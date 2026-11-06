@@ -1034,6 +1034,7 @@ $("#levelFill").style.width =
     return { layers, depends };
   }
   function isUnlocked(id) {
+    if (me && me.isAdmin) return true;
     if (stOf(id) !== "none") return true;
     const dep = tree.depends[id] || [];
     if (!dep.length) return true;
